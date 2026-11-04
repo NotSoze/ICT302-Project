@@ -109,47 +109,30 @@ body:has(.timeline-dialog[open]) {
 .timeline-section-title { margin: 30px 0 24px; font-size: 19px; font-weight: 600; }
 
 .document-timeline {
-    margin: 0;
-    padding: 0;
+    margin: 28px 0 0 8px;
+    padding: 0 0 0 24px;
+    border-left: 2px solid #1d1d1f;
     list-style: none;
-    counter-reset: revision;
 }
 
 .document-timeline li {
     position: relative;
-    padding: 0 0 28px 42px;
-    counter-increment: revision;
+    padding: 0 0 56px;
 }
 
 .document-timeline li::before {
-    content: counter(revision);
-    position: absolute;
-    left: 0;
-    top: -3px;
-    display: grid;
-    place-items: center;
-    width: 26px;
-    height: 26px;
-    border-radius: 50%;
-    background: #eaf3ff;
-    color: #0071e3;
-    font-size: 13px;
-    font-weight: 600;
-}
-
-.document-timeline li:not(:last-child)::after {
     content: "";
     position: absolute;
-    left: 12px;
-    top: 30px;
-    bottom: 9px;
-    width: 2px;
-    background: #e5e5ea;
+    left: -30px;
+    top: 7px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #1d1d1f;
 }
 
-.document-timeline time { font-size: 15px; font-weight: 600; }
-.document-timeline p { margin: 10px 0 0; color: #6e6e73; font-size: 15px; line-height: 1.5; }
-.document-timeline li:last-child { padding-bottom: 0; }
+.document-timeline time { font-size: 18px; font-weight: 600; overflow-wrap: anywhere; }
+.document-timeline p { margin: 20px 0 0; font-size: 16px; line-height: 1.5; }
 
 @media (max-width: 480px) {
     .timeline-modal-header { padding: 22px 20px 18px; }

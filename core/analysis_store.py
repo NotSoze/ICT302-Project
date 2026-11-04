@@ -1,0 +1,56 @@
+"""Connect desktop analysis results to local sessions and HTML reports."""
+from pathlib import Path
+from uuid import UUID, uuid4
+
+from core.report_generator import generate_html_report
+from core.session_manager import (
+    SessionError, create_session, default_session_directory, load_session, save_session,
+)
+
+
+class AnalysisStore:
+    def __init__(self, directory=None):
+        self.directory = Path(directory) if directory else default_session_directory()
+
+    def _path(self, session_id):
+        # Only opaque IDs returned by this service may select stored files.
+        return self.directory / f'{UUID(str(session_id)).hex}.json'
+
+    def save(self, filename, result):
+        session_id = uuid4().hex
+        session = create_session(result['sha256'], {'filename': filename, 'result': result})
+        session['analysis_status'] = 'complete'
+        save_session(session, self._path(session_id))
+        return session_id
+
+    def open(self, session_id):
+        session = load_session(self._path(session_id))
+        analysis = session['analysis']
+        result = analysis.get('result')
+        if session['analysis_status'] != 'complete' or not isinstance(result, dict) or not result.get('success'):
+            raise ValueError('This session does not contain a completed document analysis.')
+        return analysis['filename'], result
+
+    def list(self):
+        entries = []
+        for path in self.directory.glob('*.json'):
+            try:
+                filename, _ = self.open(path.stem)
+                session = load_session(path)
+                entries.append({'id': path.stem, 'name': filename, 'updated_at': session['updated_at']})
+            except (SessionError, ValueError, KeyError, TypeError):
+                continue
+        return sorted(entries, key=lambda entry: entry['updated_at'], reverse=True)
+
+    def export(self, session_id, destination):
+        _, result = self.open(session_id)
+        # The report generator expects the pipeline schema rather than the UI schema.
+        return generate_html_report({
+            'ok': True,
+            'document': {'document_id': result['sha256'], 'metadata': result['metadata'],
+                         'rsid_root': result['rsid_root']},
+            'metrics': result['metrics'],
+            'integrity': {'original_sha256': result['sha256'],
+                          'working_copy_verified': result['integrity_verified']},
+            'top_sessions': result['top_sessions'],
+        }, destination)

@@ -125,13 +125,25 @@ function renderDocumentHistory(result) {
     const sessions = document.getElementById("editingSessions");
     events.replaceChildren();
     sessions.replaceChildren();
+    const timeline = document.createElement("ol");
+    timeline.className = "document-timeline";
     for (const [label, date] of [
-        ["Document created", result.metadata.creation_date],
-        ["Document last modified", result.metadata.modified_date]
+        ["Document Created", result.metadata.creation_date],
+        ["Document Modified", result.metadata.modified_date]
     ]) {
-        if (date) appendHistoryCard(events, label, date);
+        if (!date) continue;
+        const item = document.createElement("li");
+        const timestamp = document.createElement("time");
+        timestamp.dateTime = date;
+        timestamp.textContent = date;
+        const description = document.createElement("p");
+        description.textContent = label;
+        item.append(timestamp, description);
+        timeline.append(item);
     }
-    if (!events.childElementCount) {
+    if (timeline.childElementCount) {
+        events.append(timeline);
+    } else {
         events.textContent = "No document dates were returned by the backend.";
     }
     const groups = Object.entries(result.metrics.session_word_aggregates);
@@ -184,7 +196,7 @@ function renderParagraphFacts(panel, facts) {
     panel.replaceChildren(list);
 }
 
-function selectParagraph(paragraph, file) {
+function selectParagraph(paragraph) {
     documentContent.querySelectorAll(".interactive-paragraph").forEach(function (item) {
         item.classList.toggle("is-selected", item === paragraph);
         item.setAttribute("aria-pressed", String(item === paragraph));
@@ -215,7 +227,7 @@ function selectParagraph(paragraph, file) {
     writingPanel.append(insight);
 }
 
-function enableParagraphSelection(file) {
+function enableParagraphSelection() {
     const rsidColours = new Map();
     documentContent.querySelectorAll(".rsid-run").forEach(function (run) {
         const rsid = run.dataset.rsid.trim().toUpperCase();
@@ -242,17 +254,17 @@ function enableParagraphSelection(file) {
         paragraph.setAttribute("aria-label", "View details for paragraph " + (index + 1) + ": " + paragraph.textContent.trim());
         paragraph.addEventListener("click", function (event) {
             if (event.target.closest("a")) return;
-            selectParagraph(paragraph, file);
+            selectParagraph(paragraph);
         });
         paragraph.addEventListener("keydown", function (event) {
             if (event.target !== paragraph) return;
             if (event.key === "Enter" || event.key === " ") {
                 event.preventDefault();
-                selectParagraph(paragraph, file);
+                selectParagraph(paragraph);
             }
         });
     });
-    if (paragraphs.length) selectParagraph(paragraphs[0], file);
+    if (paragraphs.length) selectParagraph(paragraphs[0]);
     else paragraphSelection.textContent = "No text paragraphs are available in this document.";
 }
 
@@ -278,7 +290,22 @@ timelineDialog.addEventListener("click", function (event) {
 
 // Store the selected file
 let selectedFile = null;
-const analysisHistory = [];
+let analysisHistory = [];
+
+async function refreshSavedAnalyses() {
+    try {
+        if (!window.pywebview?.api) return;
+        const response = await window.pywebview.api.list_sessions();
+        if (!response.success) throw new Error(response.message);
+        analysisHistory = response.sessions;
+        renderAnalysisHistory();
+        if (!analysisHistory.length) analysisHistoryElement.textContent = "No saved analyses yet.";
+    } catch (error) {
+        analysisHistoryElement.textContent = error.message;
+    }
+}
+
+window.addEventListener("pywebviewready", refreshSavedAnalyses);
 
 
 function renderAnalysisHistory() {
@@ -320,7 +347,7 @@ function openAnalysis(file) {
     analysisTabs.hidden = true;
     analysisDashboard.hidden = false;
     document.querySelector(".main-container").classList.add("dashboard-mode");
-    readDocument(file);
+    readDocument(file, file.id);
 
 }
 
@@ -360,6 +387,7 @@ newAnalysisTab.addEventListener("click", function () {
 existingAnalysisTab.addEventListener("click", function () {
 
     showTab(existingAnalysisTab, existingAnalysisPanel);
+    refreshSavedAnalyses();
 
 });
 
@@ -487,17 +515,6 @@ startAnalysis.addEventListener("click", function () {
     }
 
 
-    const existingIndex = analysisHistory.findIndex(function (file) {
-        return file.name === selectedFile.name &&
-            file.size === selectedFile.size &&
-            file.lastModified === selectedFile.lastModified;
-    });
-
-    if (existingIndex === -1) {
-        analysisHistory.unshift(selectedFile);
-        renderAnalysisHistory();
-    }
-
     openAnalysis(selectedFile);
 
 });
@@ -507,9 +524,11 @@ startAnalysis.addEventListener("click", function () {
 // READ DOCUMENT
 // ==========================================
 
-async function readDocument(file) {
+async function readDocument(file, sessionId) {
     const readVersion = ++documentReadVersion;
     currentAnalysis = null;
+    document.getElementById("exportFullAnalysis").disabled = true;
+    document.getElementById("analysisActionStatus").textContent = "";
     setHistoryMessage("Reading document analysis...");
     document.getElementById("documentSummary").textContent = "Reading metadata...";
     document.getElementById("sessionRankings").replaceChildren();
@@ -520,20 +539,28 @@ async function readDocument(file) {
     documentContent.textContent = "Reading document...";
     try {
         if (!window.pywebview?.api) throw new Error("Open the desktop app with main.py to analyse documents.");
-        const encoded = await new Promise(function (resolve, reject) {
-            const reader = new FileReader();
-            reader.onload = () => resolve(reader.result.split(",")[1]);
-            reader.onerror = () => reject(new Error("Unable to read the selected file."));
-            reader.readAsDataURL(file);
-        });
-        if (readVersion !== documentReadVersion) return;
-        const result = await window.pywebview.api.read_docx(file.name, encoded);
+        let result;
+        if (sessionId) {
+            result = await window.pywebview.api.load_analysis(sessionId);
+        } else {
+            const encoded = await new Promise(function (resolve, reject) {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result.split(",")[1]);
+                reader.onerror = () => reject(new Error("Unable to read the selected file."));
+                reader.readAsDataURL(file);
+            });
+            if (readVersion !== documentReadVersion) return;
+            result = await window.pywebview.api.read_docx(file.name, encoded);
+        }
         if (readVersion !== documentReadVersion) return;
         if (!result.success) throw new Error(result.message);
         currentAnalysis = result;
+        document.getElementById("exportFullAnalysis").disabled = !result.session_id;
+        document.getElementById("analysisActionStatus").textContent = result.storage_error || "";
         renderDocumentAnalysis(result);
         documentContent.innerHTML = result.html;
-        enableParagraphSelection(file);
+        enableParagraphSelection();
+        refreshSavedAnalyses();
     } catch (error) {
         if (readVersion === documentReadVersion) {
             documentContent.textContent = error.message;
@@ -542,6 +569,24 @@ async function readDocument(file) {
         }
     }
 }
+
+document.getElementById("exportFullAnalysis").addEventListener("click", async function () {
+    if (!currentAnalysis?.session_id) return;
+    const button = this;
+    const status = document.getElementById("analysisActionStatus");
+    const version = documentReadVersion;
+    button.disabled = true;
+    try {
+        const response = await window.pywebview.api.export_analysis(currentAnalysis.session_id);
+        if (version !== documentReadVersion) return;
+        if (!response.success) throw new Error(response.message);
+        status.textContent = response.cancelled ? "Export cancelled." : "Report saved to " + response.path;
+    } catch (error) {
+        if (version === documentReadVersion) status.textContent = error.message;
+    } finally {
+        if (version === documentReadVersion) button.disabled = !currentAnalysis?.session_id;
+    }
+});
 
 // ==========================================
 // BACK TO UPLOAD

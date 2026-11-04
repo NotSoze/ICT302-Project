@@ -94,22 +94,19 @@ class XMLParser:
         if self.core_root is None:
             return metadata
 
-        # Extract creation date
-        created_elem = self.core_root.find('.//dcterms:created', self.NS) or self.core_root.find('.//dc:created', self.NS)
-        if created_elem is not None and created_elem.text:
-            metadata['creation_date'] = created_elem.text
-
-        # Extract modification date
-        modified_elem = self.core_root.find('.//dcterms:modified', self.NS) or self.core_root.find('.//dc:modified', self.NS)
-        if modified_elem is not None and modified_elem.text:
-            metadata['modified_date'] = modified_elem.text
-
-        # Extract document revision count from core properties (<cp:revision>)
-        revision_elem = self.core_root.find('.//cp:revision', self.NS)
-        if revision_elem is not None and revision_elem.text:
-            try:
-                metadata['revision_count'] = int(revision_elem.text.strip())
-            except ValueError:
-                metadata['revision_count'] = 1
+        # Iterate through all elements and match local tag names, bypassing namespace prefix quirks
+        for elem in self.core_root.iter():
+            # ElementTree formats tags with namespaces as '{uri}local_tag'
+            local_tag = elem.tag.split('}')[-1].lower()
+            
+            if local_tag == 'created' and elem.text:
+                metadata['creation_date'] = elem.text.strip()
+            elif local_tag == 'modified' and elem.text:
+                metadata['modified_date'] = elem.text.strip()
+            elif local_tag == 'revision' and elem.text:
+                try:
+                    metadata['revision_count'] = int(elem.text.strip())
+                except ValueError:
+                    metadata['revision_count'] = 1
 
         return metadata

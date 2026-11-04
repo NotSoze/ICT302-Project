@@ -17,8 +17,7 @@ from zipfile import BadZipFile
 from core.docx_unzipper import DocxUnzipper
 from core.xml_parser import XMLParser
 from core.metrics_calculator import MetricsCalculator
-from core.doc_handler import handle_upload
-from core.integrity import verify_working_copy
+from core.doc_handler import handle_upload, verify_working_copy
 from core.verification_log import Event, VerificationLog, LogIntegrityError
 
 W = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'

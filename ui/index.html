@@ -35,7 +35,7 @@
             class="timeline-button header-timeline-button"
             id="viewTimeline"
             hidden>
-            View Timeline
+            View Summary
         </button>
 
         <button
@@ -221,6 +221,8 @@
             </button>
 
 
+            <p id="analysisActionStatus" role="status" aria-live="polite"></p>
+
             <div class="dashboard-frame">
 
                 <div class="dashboard-columns">
@@ -289,7 +291,7 @@
             <div class="upload-card">
 
                 <p class="subtitle">
-                    Documents you have analyzed in this session will appear here.
+                    Saved analyses are stored locally and can be reopened after restarting the app.
                 </p>
 
                 <div id="analysisHistory" class="analysis-history" aria-live="polite"></div>
@@ -312,11 +314,19 @@
                 <h2 id="timelineTitle">Document Analysis</h2>
                 <p class="timeline-filename" id="timelineFilename"></p>
             </div>
-            <button type="button" class="timeline-close" id="closeTimeline" aria-label="Close document timeline" autofocus>&times;</button>
+            <button type="button" class="timeline-close" id="closeTimeline" aria-label="Close document summary" autofocus>&times;</button>
         </div>
 
         <div class="timeline-modal-body">
             <p class="timeline-description" id="timelineDescription">Document dates and paragraph RSID groups from the selected file. RSIDs do not establish authorship or a chronological editing history.</p>
+
+            <section aria-labelledby="documentSummaryTitle">
+                <h2 id="documentSummaryTitle">Document summary</h2>
+                <div id="documentSummary" aria-live="polite"></div>
+                <h3>Top paragraph RSID groups</h3>
+                <div id="sessionRankings"></div>
+                <p class="paragraph-hint">Groups use paragraph RSIDs. Primary means a match with the root RSID; these labels do not identify authors or establish an editing timeline.</p>
+            </section>
 
             <section aria-labelledby="documentTimelineTitle">
                 <div class="timeline-section-heading">
@@ -334,13 +344,6 @@
                 </div>
             </section>
 
-            <section aria-labelledby="documentSummaryTitle">
-                <h2 id="documentSummaryTitle">Document summary</h2>
-                <div id="documentSummary" aria-live="polite"></div>
-                <h3>Top paragraph RSID groups</h3>
-                <div id="sessionRankings"></div>
-                <p class="paragraph-hint">Groups use paragraph RSIDs. Primary means a match with the root RSID; these labels do not identify authors or establish an editing timeline.</p>
-            </section>
         </div>
     </dialog>
 
