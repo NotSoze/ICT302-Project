@@ -18,7 +18,16 @@ class AnalysisStore:
 
     def save(self, filename, result):
         session_id = uuid4().hex
-        session = create_session(result['sha256'], {'filename': filename, 'result': result})
+        previous = None
+        for entry in self.list():
+            _, saved_result = self.open(entry['id'])
+            if saved_result.get('sha256') == result['sha256']:
+                session_id = entry['id']
+                previous = load_session(self._path(session_id))
+                break
+        session = create_session(session_id, {'filename': filename, 'result': result})
+        if previous is not None:
+            session['created_at'] = previous['created_at']
         session['analysis_status'] = 'complete'
         save_session(session, self._path(session_id))
         return session_id
@@ -32,22 +41,29 @@ class AnalysisStore:
         return analysis['filename'], result
 
     def list(self):
-        entries = []
+        # Keep the newest saved analysis for each content hash. Older duplicate
+        # files remain on disk, but do not produce duplicate history entries.
+        entries = {}
         for path in self.directory.glob('*.json'):
             try:
-                filename, _ = self.open(path.stem)
+                filename, result = self.open(path.stem)
                 session = load_session(path)
-                entries.append({'id': path.stem, 'name': filename, 'updated_at': session['updated_at']})
+                content_hash = result.get('sha256')
+                if not isinstance(content_hash, str) or not content_hash:
+                    continue
+                entry = {'id': path.stem, 'name': filename, 'updated_at': session['updated_at']}
+                if content_hash not in entries or entry['updated_at'] > entries[content_hash]['updated_at']:
+                    entries[content_hash] = entry
             except (SessionError, ValueError, KeyError, TypeError):
                 continue
-        return sorted(entries, key=lambda entry: entry['updated_at'], reverse=True)
+        return sorted(entries.values(), key=lambda entry: entry['updated_at'], reverse=True)
 
     def export(self, session_id, destination):
         _, result = self.open(session_id)
         # The report generator expects the pipeline schema rather than the UI schema.
         return generate_html_report({
             'ok': True,
-            'document': {'document_id': result['sha256'], 'metadata': result['metadata'],
+            'document': {'document_id': session_id, 'metadata': result['metadata'],
                          'rsid_root': result['rsid_root']},
             'metrics': result['metrics'],
             'integrity': {'original_sha256': result['sha256'],

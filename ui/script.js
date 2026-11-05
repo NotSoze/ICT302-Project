@@ -80,19 +80,18 @@ function renderDocumentAnalysis(result) {
     renderDocumentHistory(result);
     const metrics = result.metrics;
     const value = item => item == null ? "Not available" : String(item);
+    document.getElementById("timelineSha256").textContent = "SHA-256: " + value(result.sha256);
     renderParagraphFacts(document.getElementById("documentSummary"), [
-        ["Created", value(result.metadata.creation_date)],
-        ["Modified", value(result.metadata.modified_date)],
         ["Root RSID", value(result.rsid_root)],
         ["Total words", value(metrics.total_word_count)],
         ["Recorded revision count", value(metrics.revision_count)],
         ["Unique paragraph RSIDs", value(metrics.unique_rsid_count)],
         ["Words / recorded revision", value(metrics.word_to_revision_ratio)],
-        ["Paragraph RSIDs / recorded revision", value(metrics.unique_rsid_to_revision_ratio)],
-        ["Working copy integrity", result.integrity_verified ? "Verified" : "Not verified"],
-        ["Document SHA-256", value(result.sha256)],
-        ["Validation warnings", (result.warnings || []).join("; ") || "None"]
+        ["Paragraph RSIDs / recorded revision", value(metrics.unique_rsid_to_revision_ratio)]
     ]);
+    document.getElementById("documentChecks").textContent =
+        "Working copy integrity: " + (result.integrity_verified ? "Verified" : "Not verified") +
+        ". Validation warnings: " + ((result.warnings || []).join("; ") || "None");
     const rankings = document.getElementById("sessionRankings");
     if (result.top_sessions.length) {
         renderParagraphFacts(rankings, result.top_sessions.map(group => [
@@ -127,9 +126,10 @@ function renderDocumentHistory(result) {
     sessions.replaceChildren();
     const timeline = document.createElement("ol");
     timeline.className = "document-timeline";
-    for (const [label, date] of [
-        ["Document Created", result.metadata.creation_date],
-        ["Document Modified", result.metadata.modified_date]
+    // Backend metadata fields: creator and last_modified_by (DOCX core properties).
+    for (const [label, date, authorLabel, author] of [
+        ["Document Created", result.metadata.creation_date, "Created by", result.metadata.creator],
+        ["Document Modified", result.metadata.modified_date, "Modified by", result.metadata.last_modified_by]
     ]) {
         if (!date) continue;
         const item = document.createElement("li");
@@ -138,7 +138,11 @@ function renderDocumentHistory(result) {
         timestamp.textContent = date;
         const description = document.createElement("p");
         description.textContent = label;
-        item.append(timestamp, description);
+        const attribution = document.createElement("p");
+        attribution.className = "timeline-author";
+        attribution.textContent = authorLabel + ": " +
+            (typeof author === "string" && author.trim() ? author.trim() : "Not available");
+        item.append(timestamp, description, attribution);
         timeline.append(item);
     }
     if (timeline.childElementCount) {
@@ -327,7 +331,37 @@ function renderAnalysisHistory() {
         openButton.dataset.analysisIndex = String(index);
         openButton.textContent = "Open Analysis";
 
-        item.append(name, openButton);
+        const actions = document.createElement("div");
+        actions.className = "analysis-history-actions";
+        const deleteButton = document.createElement("button");
+        deleteButton.type = "button";
+        deleteButton.className = "analysis-history-delete";
+        deleteButton.setAttribute("aria-label", "Delete saved analysis for " + file.name);
+        deleteButton.title = "Delete saved analysis";
+        deleteButton.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/></svg>';
+        deleteButton.addEventListener("click", async function () {
+            const status = document.getElementById("analysisHistoryStatus");
+            status.hidden = true;
+            deleteButton.disabled = true;
+            openButton.disabled = true;
+            try {
+                // Future backend contract: delete_analysis(session_id) -> {success, message?}.
+                if (typeof window.pywebview?.api?.delete_analysis !== "function") {
+                    throw new Error("Deleting saved analyses is not available yet.");
+                }
+                const response = await window.pywebview.api.delete_analysis(file.id);
+                if (!response.success) throw new Error(response.message || "Unable to delete saved analysis.");
+                await refreshSavedAnalyses();
+            } catch (error) {
+                status.textContent = error.message;
+                status.hidden = false;
+            } finally {
+                deleteButton.disabled = false;
+                openButton.disabled = false;
+            }
+        });
+        actions.append(openButton, deleteButton);
+        item.append(name, actions);
         analysisHistoryElement.append(item);
 
     });
@@ -527,6 +561,8 @@ startAnalysis.addEventListener("click", function () {
 async function readDocument(file, sessionId) {
     const readVersion = ++documentReadVersion;
     currentAnalysis = null;
+    document.getElementById("timelineSha256").textContent = "";
+    document.getElementById("documentChecks").textContent = "";
     document.getElementById("exportFullAnalysis").disabled = true;
     document.getElementById("analysisActionStatus").textContent = "";
     setHistoryMessage("Reading document analysis...");
@@ -580,7 +616,7 @@ document.getElementById("exportFullAnalysis").addEventListener("click", async fu
         const response = await window.pywebview.api.export_analysis(currentAnalysis.session_id);
         if (version !== documentReadVersion) return;
         if (!response.success) throw new Error(response.message);
-        status.textContent = response.cancelled ? "Export cancelled." : "Report saved to " + response.path;
+        status.textContent = response.cancelled ? "Export cancelled." : "";
     } catch (error) {
         if (version === documentReadVersion) status.textContent = error.message;
     } finally {

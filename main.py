@@ -56,6 +56,7 @@ if __name__ == "__main__":
         title="Document Metadata Extractor",
         url=str(Path(__file__).resolve().parent / "ui" / "index.html"),
         js_api=api,
+        maximized=True,
         width=1200,
         height=800,
         min_size=(900, 600),
