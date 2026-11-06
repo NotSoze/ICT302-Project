@@ -65,8 +65,11 @@ def read_docx(filename, encoded_file, storage_dir=None):
         return {'success': False, 'message': 'Invalid upload filename.'}
     try:
         data = base64.b64decode(encoded_file, validate=True)
+        """
         storage = (Path(storage_dir) if storage_dir is not None else
                    Path(os.environ.get('LOCALAPPDATA', Path.home())) / 'MetadataApp' / 'storage')
+        """
+        storage = Path(__file__).resolve().parent.parent / 'storage'
         log_path = storage / 'verification_logs' / f'{uuid4().hex}.jsonl'
         log = VerificationLog(log_path)
         # Stage the browser's upload bytes. The handler owns the verified copy;

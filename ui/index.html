@@ -66,6 +66,13 @@
 
             </button>
 
+            <button
+                type="button"
+                class="analysis-tab"
+                id="temp-workspace-tab">
+                Temp Workspaces
+            </button>
+
         </div>
 
     </div>
@@ -296,6 +303,24 @@
 
                 <div id="analysisHistory" class="analysis-history" aria-live="polite"></div>
                 <p id="analysisHistoryStatus" class="upload-message" role="status" hidden></p>
+
+            </div>
+
+        </section>
+
+        <section
+            id="temp-workspace-panel"
+            class="tab-panel"
+            hidden>
+
+            <div class="upload-card">
+
+                <p class="subtitle">
+                    Manage active working copies stored in the local temp workspace. Deleting these frees up disk space without affecting your saved session history.
+                </p>
+
+                <div id="tempWorkspaceList" class="analysis-history" aria-live="polite"></div>
+                <p id="tempWorkspaceStatus" class="upload-message" role="status" hidden></p>
 
             </div>
 

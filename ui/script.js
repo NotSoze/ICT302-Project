@@ -664,3 +664,84 @@ backToUpload.addEventListener("click", function () {
     ).hidden = false;
 
 });
+
+
+// ==========================================
+// TEMP WORKSPACE MANAGEMENT TABS & LOGIC
+// ==========================================
+
+const tempWorkspaceTab = document.getElementById("temp-workspace-tab");
+const tempWorkspacePanel = document.getElementById("temp-workspace-panel");
+const tempWorkspaceListElement = document.getElementById("tempWorkspaceList");
+
+function showTab(tab, panel) {
+    newAnalysisTab.classList.toggle("active", tab === newAnalysisTab);
+    existingAnalysisTab.classList.toggle("active", tab === existingAnalysisTab);
+    if (tempWorkspaceTab) tempWorkspaceTab.classList.toggle("active", tab === tempWorkspaceTab);
+    
+    newAnalysisPanel.hidden = panel !== newAnalysisPanel;
+    existingAnalysisPanel.hidden = panel !== existingAnalysisPanel;
+    if (tempWorkspacePanel) tempWorkspacePanel.hidden = panel !== tempWorkspacePanel;
+}
+
+if (tempWorkspaceTab) {
+    tempWorkspaceTab.addEventListener("click", function () {
+        showTab(tempWorkspaceTab, tempWorkspacePanel);
+        refreshTempWorkspaces();
+    });
+}
+
+let tempWorkspaces = [];
+
+async function refreshTempWorkspaces() {
+    try {
+        if (!window.pywebview?.api) return;
+        const response = await window.pywebview.api.list_temp_workspaces();
+        if (!response.success) throw new Error(response.message);
+        tempWorkspaces = response.workspaces;
+        renderTempWorkspaces();
+        if (!tempWorkspaces.length) {
+            tempWorkspaceListElement.textContent = "No temporary working copies found.";
+        }
+    } catch (error) {
+        tempWorkspaceListElement.textContent = error.message;
+    }
+}
+
+function renderTempWorkspaces() {
+    tempWorkspaceListElement.replaceChildren();
+    tempWorkspaces.forEach(function (workspace) {
+        const item = document.createElement("div");
+        item.className = "analysis-history-item";
+
+        const name = document.createElement("span");
+        name.className = "analysis-history-name";
+        name.textContent = "Working Copy: " + workspace.name.substring(0, 12) + "... (" + (workspace.size / 1024).toFixed(1) + " KB)";
+
+        const deleteButton = document.createElement("button");
+        deleteButton.type = "button";
+        deleteButton.className = "analysis-history-delete";
+        deleteButton.setAttribute("aria-label", "Delete working copy " + workspace.name);
+        deleteButton.title = "Delete working copy";
+        deleteButton.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/></svg>';
+        
+        deleteButton.addEventListener("click", async function () {
+            const status = document.getElementById("tempWorkspaceStatus");
+            status.hidden = true;
+            deleteButton.disabled = true;
+            try {
+                const response = await window.pywebview.api.delete_temp_workspace(workspace.id);
+                if (!response.success) throw new Error(response.message || "Unable to delete working copy.");
+                await refreshTempWorkspaces();
+            } catch (error) {
+                status.textContent = error.message;
+                status.hidden = false;
+            } finally {
+                deleteButton.disabled = false;
+            }
+        });
+
+        item.append(name, deleteButton);
+        tempWorkspaceListElement.append(item);
+    });
+}

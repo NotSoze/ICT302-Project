@@ -59,6 +59,39 @@ class Api:
         except (SessionError, OSError, ValueError, KeyError, TypeError) as error:
             return {'success': False, 'message': f'Unable to delete saved analysis: {error}'}
 
+    def list_temp_workspaces(self):
+        try:
+            temp_dir = Path(__file__).resolve().parent / "storage" / "temp_workspace"
+            if not temp_dir.exists():
+                return {'success': True, 'workspaces': []}
+            
+            workspaces = []
+            for item in temp_dir.iterdir():
+                if item.is_dir():
+                    size_bytes = sum(f.stat().st_size for f in item.glob('**/*') if f.is_file())
+                    workspaces.append({
+                        'id': item.name,
+                        'name': item.name,
+                        'size': size_bytes,
+                        'modified_at': item.stat().st_mtime
+                    })
+            return {'success': True, 'workspaces': sorted(workspaces, key=lambda x: x['modified_at'], reverse=True)}
+        except (OSError, Exception) as error:
+            return {'success': False, 'message': str(error)}
+
+    def delete_temp_workspace(self, workspace_id):
+        try:
+            temp_dir = Path(__file__).resolve().parent / "storage" / "temp_workspace"
+            target = temp_dir / workspace_id
+            if target.resolve().parent != temp_dir.resolve() or not target.is_dir():
+                return {'success': False, 'message': 'Invalid workspace identifier.'}
+            
+            import shutil
+            shutil.rmtree(target, ignore_errors=True)
+            return {'success': True}
+        except (OSError, Exception) as error:
+            return {'success': False, 'message': f'Unable to delete working copy: {error}'}
+
 if __name__ == "__main__":
     api = Api()
 
