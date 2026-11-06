@@ -3,11 +3,26 @@
 @brief Creates a local HTML summary of a completed CopyQ analysis.
 """
 
+from datetime import datetime
 from html import escape
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Any
 
+def _format_timestamp(raw_date: Any) -> str:
+    """
+    @brief Convert an ISO timestamp string into a human-readable format.
+    """
+    if not isinstance(raw_date, str) or not raw_date.strip():
+        return "Not available"
+    try:
+        # Parse ISO format (handling trailing 'Z' for UTC)
+        cleaned = raw_date.strip().replace("Z", "+00:00")
+        dt = datetime.fromisoformat(cleaned)
+        return dt.strftime("%B %d, %Y at %H:%M UTC")
+    except ValueError:
+        # Fallback to raw string if parsing fails
+        return raw_date
 
 def generate_html_report(
     analysis_result: dict[str, Any],
@@ -40,8 +55,10 @@ def generate_html_report(
         ("Original SHA-256", integrity.get("original_sha256")),
         ("Working copy verified", integrity.get("working_copy_verified")),
         ("RSID root", document.get("rsid_root")),
-        ("Creation date", document_metadata.get("creation_date")),
-        ("Modified date", document_metadata.get("modified_date")),
+        ("Author", document_metadata.get("creator")),
+        ("Last modified by", document_metadata.get("last_modified_by")),
+        ("Creation date", _format_timestamp(document_metadata.get("creation_date"))),
+        ("Modified date", _format_timestamp(document_metadata.get("modified_date"))),
         ("Revision count", metrics.get("revision_count")),
         ("Total word count", metrics.get("total_word_count")),
         ("Unique RSID count", metrics.get("unique_rsid_count")),

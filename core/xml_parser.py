@@ -88,6 +88,8 @@ class XMLParser:
         metadata = {
             'creation_date': None,
             'modified_date': None,
+            'creator': None,
+            'last_modified_by': None,
             'revision_count': 1  # Default fallback if revision element is missing
         }
         
@@ -103,6 +105,10 @@ class XMLParser:
                 metadata['creation_date'] = elem.text.strip()
             elif local_tag == 'modified' and elem.text:
                 metadata['modified_date'] = elem.text.strip()
+            elif local_tag == 'creator' and elem.text:
+                metadata['creator'] = elem.text.strip()
+            elif local_tag == 'lastmodifiedby' and elem.text:
+                metadata['last_modified_by'] = elem.text.strip()
             elif local_tag == 'revision' and elem.text:
                 try:
                     metadata['revision_count'] = int(elem.text.strip())

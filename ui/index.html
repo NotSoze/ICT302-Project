@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Metadata-app</title>
+
+    <link rel="stylesheet" href="style.css">
+
+</head>
+
+
+<body>
+
+    <!-- ========================= -->
+    <!-- HEADER -->
+    <!-- ========================= -->
+
+    <div class="header">
+
+        <span class="header-title">
+            Metadata-app
+        </span>
+
+        <span
+            class="dashboard-filename"
+            id="dashboardFilename"
+            hidden>
+        </span>
+
+        <button
+            type="button"
+            class="timeline-button header-timeline-button"
+            id="viewTimeline"
+            hidden>
+            View Summary
+        </button>
+
+        <button
+            type="button"
+            class="timeline-button"
+            id="exportFullAnalysis"
+            hidden>
+            Export Full Analysis
+        </button>
+
+        <div class="analysis-tabs">
+
+            <button
+                type="button"
+                class="analysis-tab active"
+                id="new-analysis-tab">
+
+                Upload New File
+
+            </button>
+
+            <button
+                type="button"
+                class="analysis-tab"
+                id="existing-analysis-tab">
+
+                Existing Analysis
+
+            </button>
+
+        </div>
+
+    </div>
+
+
+    <!-- ========================= -->
+    <!-- MAIN CONTENT -->
+    <!-- ========================= -->
+
+    <div class="main-container">
+
+
+        <!-- ========================= -->
+        <!-- UPLOAD VIEW -->
+        <!-- ========================= -->
+
+        <section id="new-analysis-panel">
+
+            <div class="upload-card">
+
+                <!-- Initial upload box -->
+
+                <div class="upload-box" id="uploadBox">
+
+                    <div class="upload-text">
+                        Drag and drop your document here
+                    </div>
+
+                    <div class="upload-subtext">
+                        Supports .docx files only
+                    </div>
+
+                    <button
+                        type="button"
+                        id="chooseFile"
+                        class="upload-btn">
+
+                        Choose File
+
+                    </button>
+
+                </div>
+
+
+                <!-- Actual file input -->
+
+                <input
+                    type="file"
+                    id="fileInput"
+                    accept=".docx">
+
+
+                <!-- ========================= -->
+                <!-- FILE SELECTED VIEW -->
+                <!-- ========================= -->
+
+                <div id="selectedFileView" hidden>
+
+                    <h1 class="selected-title">
+                        Uploaded file
+                    </h1>
+
+                    <div class="file-summary">
+
+                        <div class="document-icon">
+                            📄
+                        </div>
+
+                        <div class="file-details">
+
+                            <div
+                                class="file-name"
+                                id="fileName">
+                            </div>
+
+                            <div
+                                class="file-size"
+                                id="fileSize">
+                            </div>
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="file-footer">
+
+                        <p
+                            class="file-status"
+                            id="fileStatus">
+
+                            ✓ File selected successfully
+
+                        </p>
+
+
+                        <div class="file-actions">
+
+                            <button
+                                type="button"
+                                class="upload-btn secondary-btn"
+                                id="replaceFile">
+
+                                Replace File
+
+                            </button>
+
+
+                            <button
+                                type="button"
+                                class="upload-btn"
+                                id="startAnalysis">
+
+                                Start Analysis
+
+                            </button>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <p
+                    id="uploadMessage"
+                    class="upload-message"
+                    hidden>
+                </p>
+
+            </div>
+
+        </section>
+
+
+        <!-- ========================= -->
+        <!-- ANALYSIS VIEW -->
+        <!-- ========================= -->
+
+        <section
+            id="analysisDashboard"
+            class="analysis-dashboard"
+            hidden>
+
+
+            <button
+                type="button"
+                class="dashboard-back"
+                id="backToUpload">
+
+                ← Back to upload
+
+            </button>
+
+
+            <p id="analysisActionStatus" role="status" aria-live="polite"></p>
+
+            <div class="dashboard-frame">
+
+                <div class="dashboard-columns">
+
+
+                    <!-- ========================= -->
+                    <!-- DOCUMENT CONTENT -->
+                    <!-- ========================= -->
+
+                    <section
+                        class="dashboard-pane document-pane">
+
+                        <!-- Actual document content will appear here -->
+
+                        <article
+                            class="document-content"
+                            id="documentContent">
+
+                            <p>
+                                Your document content will appear here.
+                            </p>
+
+                        </article>
+
+                    </section>
+
+
+                    <!-- ========================= -->
+                    <!-- WRITING STYLE -->
+                    <!-- ========================= -->
+
+                    <section
+                        class="dashboard-pane">
+
+                        <div class="paragraph-tabs" role="tablist" aria-label="Paragraph details">
+                            <button type="button" id="metadataTab" role="tab" aria-selected="true" aria-controls="paragraphMetadata">Metadata</button>
+                            <button type="button" id="writingTab" role="tab" aria-selected="false" aria-controls="writingStyle" tabindex="-1">Writing Analysis</button>
+                        </div>
+                        <p class="paragraph-selection" id="paragraphSelection" aria-live="polite">Select a highlighted paragraph to view its details.</p>
+                        <div id="paragraphMetadata" role="tabpanel" aria-labelledby="metadataTab" tabindex="0">
+                            <p class="paragraph-hint">Paragraph metadata will appear here.</p>
+                        </div>
+                        <div id="writingStyle" class="analysis-result" role="tabpanel" aria-labelledby="writingTab" tabindex="0" hidden>
+                            Select a highlighted paragraph to view its writing analysis.
+                        </div>
+
+                    </section>
+
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- ========================= -->
+        <!-- EXISTING ANALYSIS -->
+        <!-- ========================= -->
+
+        <section
+            id="existing-analysis-panel"
+            class="tab-panel"
+            hidden>
+
+            <div class="upload-card">
+
+                <p class="subtitle">
+                    Saved analyses are stored locally and can be reopened after restarting the app.
+                </p>
+
+                <div id="analysisHistory" class="analysis-history" aria-live="polite"></div>
+                <p id="analysisHistoryStatus" class="upload-message" role="status" hidden></p>
+
+            </div>
+
+        </section>
+
+
+    </div>
+
+
+    <!-- ========================= -->
+    <!-- JAVASCRIPT -->
+    <!-- ========================= -->
+
+    <dialog class="timeline-dialog" id="timelineDialog" aria-labelledby="timelineTitle" aria-describedby="timelineDescription">
+        <div class="timeline-modal-header">
+            <div>
+                <h2 id="timelineTitle">Document Analysis</h2>
+                <p class="timeline-filename" id="timelineFilename"></p>
+                <p class="timeline-sha256" id="timelineSha256"></p>
+            </div>
+            <button type="button" class="timeline-close" id="closeTimeline" aria-label="Close document summary" autofocus>&times;</button>
+        </div>
+
+        <div class="timeline-modal-body">
+            <p class="timeline-description" id="timelineDescription">Document dates and paragraph RSID groups from the selected file. RSIDs do not establish authorship or a chronological editing history.</p>
+
+            <section aria-labelledby="documentSummaryTitle">
+                <h2 id="documentSummaryTitle">Document summary</h2>
+                <div id="documentSummary" aria-live="polite"></div>
+                <p class="paragraph-hint" id="documentChecks"></p>
+                <h3>Top paragraph RSID groups</h3>
+                <div id="sessionRankings"></div>
+                <p class="paragraph-hint">Groups use paragraph RSIDs. Primary means a match with the root RSID; these labels do not identify authors or establish an editing timeline.</p>
+            </section>
+
+            <section aria-labelledby="documentTimelineTitle">
+                <div class="timeline-section-heading">
+                    <h3 id="documentTimelineTitle">Document Timeline</h3>
+                </div>
+                <div class="paragraph-tabs timeline-view-tabs" role="tablist" aria-label="Document history view">
+                    <button type="button" id="eventsTab" role="tab" aria-selected="true" aria-controls="timelineEvents">Timeline</button>
+                    <button type="button" id="sessionsTab" role="tab" aria-selected="false" aria-controls="editingSessions" tabindex="-1">Editing sessions</button>
+                </div>
+                <div id="timelineEvents" role="tabpanel" aria-labelledby="eventsTab" tabindex="0">
+                    <p class="paragraph-hint">Analyse a document to view available dates.</p>
+                </div>
+                <div id="editingSessions" role="tabpanel" aria-labelledby="sessionsTab" tabindex="0" hidden>
+                    <p class="paragraph-hint">Analyse a document to view available RSID groups.</p>
+                </div>
+            </section>
+
+        </div>
+    </dialog>
+
+    <script src="script.js"></script>
+
+</body>
+
+</html>
