@@ -57,10 +57,25 @@ class XMLParser:
                 
                 if t_elem is not None and t_elem.text:
                     p_text += t_elem.text
+
+                # 1. Apply the fallback cascade so untagged runs inherit paragraph RSIDs
+                effective_run_rsid = r_rsid_r or p_rsid_r or p_rsid_default
+                
+                # 2. Compute run-level word count
+                run_word_count = len(run_text.split()) if run_text else 0
+                
+                # 3. Classify run-level session type against rsid_root
+                run_session_type = (
+                    "Primary"
+                    if (effective_run_rsid and rsid_root and effective_run_rsid.lower() == rsid_root.lower())
+                    else "Secondary/Other"
+                )
                     
                 runs_data.append({
-                    'rsidR': r_rsid_r,
-                    'text': run_text
+                    'rsidR': effective_run_rsid,
+                    'text': run_text,
+                    'word_count': run_word_count,
+                    'session_type': run_session_type
                 })
 
             word_count = len(p_text.split())
@@ -116,3 +131,58 @@ class XMLParser:
                     metadata['revision_count'] = 1
 
         return metadata
+
+    def generate_timeline_player_sequence(self, parsed_paragraphs: list[dict]) -> list[dict]:
+        """
+        Constructs the timeline player sequence using the chronological order
+        of RSIDs defined in settings.xml from top to bottom.
+        """
+        if self.settings_root is None:
+            return []
+
+        # 1. Get all unique RSIDs in their exact chronological order from settings.xml
+        settings_rsids = []
+        for elem in self.settings_root.iter():
+            local_tag = elem.tag.split('}')[-1]
+            if local_tag == 'rsid':
+                val = elem.attrib.get('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}val')
+                if val and val not in settings_rsids:
+                    settings_rsids.append(val)
+
+        rsid_root = self.extract_rsid_root()
+        timeline_sessions = []
+
+        # 2. Iterate through each RSID value in settings.xml order (top to bottom)
+        for target_rsid in settings_rsids:
+            session_total_words = 0
+            session_texts = []
+            
+            # Determine session type based on whether this RSID is the root RSID
+            is_root = (rsid_root and target_rsid.lower() == rsid_root.lower())
+            session_type = "Primary" if is_root else "Secondary/Other"
+
+            # 3. Iterate through all paragraph objects of the document
+            for para in parsed_paragraphs:
+                # Go into the paragraph objects to find the text run level objects
+                for run in para.get('runs', []):
+                    run_rsid = run.get('rsidR')
+                    
+                    # Match with the target RSID from settings.xml
+                    if run_rsid and run_rsid.lower() == target_rsid.lower():
+                        # Accumulate word counts
+                        session_total_words += run.get('word_count', 0)
+                        
+                        # Take its string (combine if multiple found)
+                        if run.get('text'):
+                            session_texts.append(run['text'])
+
+            # 4. Only keep sessions that actually appear in the document text
+            if session_texts:
+                timeline_sessions.append({
+                    'rsid': target_rsid,
+                    'total_word_count': session_total_words,
+                    'combined_text': "".join(session_texts),
+                    'session_type': session_type
+                })
+
+        return timeline_sessions

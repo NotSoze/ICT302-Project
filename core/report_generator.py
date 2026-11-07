@@ -9,6 +9,8 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Any
 
+from xhtml2pdf import pisa
+
 def _format_timestamp(raw_date: Any) -> str:
     """
     @brief Convert an ISO timestamp string into a human-readable format.

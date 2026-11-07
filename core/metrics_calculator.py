@@ -26,14 +26,16 @@ class MetricsCalculator:
         session_types = {}
 
         for p in self.paragraphs:
-            rsid = p['paragraph_rsidR'] or p['paragraph_rsidDefault']
-            if rsid:
-                unique_rsids.add(rsid)
-                session_word_aggregates[rsid] = session_word_aggregates.get(rsid, 0) + p['word_count']
-                
-                # Map the RSID to its classified session type (Primary vs Secondary/Other)
-                if rsid not in session_types:
-                    session_types[rsid] = p['session_type']
+            for run in p.get('runs', []):
+                rsid = run.get('rsidR')
+                if rsid:
+                    unique_rsids.add(rsid)
+                    # Accumulate word counts per run
+                    session_word_aggregates[rsid] = session_word_aggregates.get(rsid, 0) + run['word_count']
+                    
+                    # Map the RSID to its classified session type
+                    if rsid not in session_types:
+                        session_types[rsid] = run['session_type']
 
         u_count = len(unique_rsids)
 
