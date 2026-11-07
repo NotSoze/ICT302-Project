@@ -111,7 +111,6 @@ def generate_html_report(
       color: #1f2933;
     }}
     table {{
-      border-collapse: collapse;
       width: 100%;
       margin-bottom: 2rem;
     }}
@@ -160,17 +159,20 @@ def generate_html_report(
 </html>
 """
 
-    # Write to a temporary file first so an interrupted save does not leave
-    # a partially written report at the requested destination.
+    
+
+
     with NamedTemporaryFile(
-        mode="w",
-        encoding="utf-8",
+        mode="w+b", # 👈 Note: Changed from text mode ("w") to binary write mode ("w+b")
         suffix=".tmp",
         dir=output_path.parent,
         delete=False,
     ) as temporary_file:
-        temporary_file.write(html)
+        pisa_status = pisa.CreatePDF(html, dest=temporary_file) # 👈 Converts HTML to PDF binary stream
         temporary_path = Path(temporary_file.name)
+
+    if pisa_status.err:
+        raise ValueError("Failed to generate PDF report from HTML template.")
 
     temporary_path.replace(output_path)
     return output_path

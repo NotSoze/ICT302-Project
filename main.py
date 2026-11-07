@@ -40,8 +40,8 @@ class Api:
         try:
             filename, _ = self.store.open(session_id)
             destination = webview.windows[0].create_file_dialog(
-                webview.FileDialog.SAVE, save_filename=Path(filename).stem + '-analysis.html',
-                file_types=('HTML report (*.html)',))
+                webview.FileDialog.SAVE, save_filename=Path(filename).stem + '-analysis.pdf',
+                file_types=('PDF report (*.pdf)',))
             if not destination:
                 return {'success': True, 'cancelled': True}
             path = destination if isinstance(destination, str) else destination[0]
