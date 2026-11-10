@@ -158,7 +158,17 @@ function renderDocumentHistory(result) {
         events.textContent = "No document dates were returned by the backend.";
     }
     const groups = Object.entries(result.metrics.session_word_aggregates);
-    groups.sort((a, b) => b[1] - a[1]);
+    const sequenceOrder = new Map(
+        (result.session_sequence || []).map((rsid, index) => [rsid.toUpperCase(), index])
+    );
+    groups.sort((a, b) => {
+        const aOrder = sequenceOrder.get(a[0].toUpperCase());
+        const bOrder = sequenceOrder.get(b[0].toUpperCase());
+        if (aOrder === undefined && bOrder === undefined) return 0;
+        if (aOrder === undefined) return 1;
+        if (bOrder === undefined) return -1;
+        return aOrder - bOrder;
+    });
     for (const [rsid, words] of groups) {
         const groupType = result.metrics.session_types[rsid];
         appendHistoryCard(sessions, "RSID " + rsid,
@@ -249,10 +259,15 @@ function enableParagraphSelection() {
         if (!rsidColours.has(rsid)) {
             // Generate additional colours instead of cycling a fixed palette.
             const hue = (rsidColours.size * 137.508 + 30) % 360;
-            rsidColours.set(rsid, "hsl(" + hue + ", 70%, 82%)");
+=            rsidColours.set(rsid, {
+                colour: "hsl(" + hue + ", 70%, 82%)",
+                number: rsidColours.size + 1
+            });
         }
-        run.style.backgroundColor = rsidColours.get(rsid);
-        run.title = "Text RSID: " + rsid;
+        const indicator = rsidColours.get(rsid);
+        run.style.backgroundColor = indicator.colour;
+        run.dataset.rsidNumber = String(indicator.number);
+        run.title = "RSID " + indicator.number + ": " + rsid;
     });
     const paragraphs = Array.from(documentContent.querySelectorAll("p"))
         .filter(function (paragraph) { return paragraph.textContent.trim(); });
@@ -701,7 +716,7 @@ async function refreshTempWorkspaces() {
         tempWorkspaces = response.workspaces;
         renderTempWorkspaces();
         if (!tempWorkspaces.length) {
-            tempWorkspaceListElement.textContent = "No temporary working copies found.";
+            tempWorkspaceListElement.textContent = "No recent runs found.";
         }
     } catch (error) {
         tempWorkspaceListElement.textContent = error.message;
@@ -716,7 +731,7 @@ function renderTempWorkspaces() {
 
         const name = document.createElement("span");
         name.className = "analysis-history-name";
-        name.textContent = "Working Copy: " + workspace.name.substring(0, 12) + "... (" + (workspace.size / 1024).toFixed(1) + " KB)";
+        name.textContent = workspace.name.substring(0, 12) + "... (" + (workspace.size / 1024).toFixed(1) + " KB)";
 
         const deleteButton = document.createElement("button");
         deleteButton.type = "button";

@@ -8,7 +8,6 @@ from core.session_manager import (
 )
 
 
-
 class AnalysisStore:
     def __init__(self, directory=None):
         self.directory = Path(directory) if directory else default_session_directory()
@@ -71,11 +70,3 @@ class AnalysisStore:
                           'working_copy_verified': result['integrity_verified']},
             'top_sessions': result['top_sessions'],
         }, destination)
-
-    def delete(self, session_id):
-        """Delete a saved session JSON file from disk by its session ID."""
-        path = self._path(session_id)
-        if path.is_file():
-            path.unlink()
-            return True
-        return False
