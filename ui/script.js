@@ -135,7 +135,14 @@ function renderDocumentHistory(result) {
         const item = document.createElement("li");
         const timestamp = document.createElement("time");
         timestamp.dateTime = date;
-        timestamp.textContent = date;
+        try {
+            const dt = new Date(date);
+            timestamp.textContent = isNaN(dt) ? date : dt.toLocaleString("en-US", {
+                month: "long", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit", timeZoneName: "short"
+            });
+        } catch (e) {
+            timestamp.textContent = date;
+        }
         const description = document.createElement("p");
         description.textContent = label;
         const attribution = document.createElement("p");
@@ -151,7 +158,17 @@ function renderDocumentHistory(result) {
         events.textContent = "No document dates were returned by the backend.";
     }
     const groups = Object.entries(result.metrics.session_word_aggregates);
-    groups.sort((a, b) => b[1] - a[1]);
+    const sequenceOrder = new Map(
+        (result.session_sequence || []).map((rsid, index) => [rsid.toUpperCase(), index])
+    );
+    groups.sort((a, b) => {
+        const aOrder = sequenceOrder.get(a[0].toUpperCase());
+        const bOrder = sequenceOrder.get(b[0].toUpperCase());
+        if (aOrder === undefined && bOrder === undefined) return 0;
+        if (aOrder === undefined) return 1;
+        if (bOrder === undefined) return -1;
+        return aOrder - bOrder;
+    });
     for (const [rsid, words] of groups) {
         const groupType = result.metrics.session_types[rsid];
         appendHistoryCard(sessions, "RSID " + rsid,
@@ -242,10 +259,15 @@ function enableParagraphSelection() {
         if (!rsidColours.has(rsid)) {
             // Generate additional colours instead of cycling a fixed palette.
             const hue = (rsidColours.size * 137.508 + 30) % 360;
-            rsidColours.set(rsid, "hsl(" + hue + ", 70%, 82%)");
+            rsidColours.set(rsid, {
+                colour: "hsl(" + hue + ", 70%, 82%)",
+                number: rsidColours.size + 1
+            });
         }
-        run.style.backgroundColor = rsidColours.get(rsid);
-        run.title = "Text RSID: " + rsid;
+        const indicator = rsidColours.get(rsid);
+        run.style.backgroundColor = indicator.colour;
+        run.dataset.rsidNumber = String(indicator.number);
+        run.title = "RSID " + indicator.number + ": " + rsid;
     });
     const paragraphs = Array.from(documentContent.querySelectorAll("p"))
         .filter(function (paragraph) { return paragraph.textContent.trim(); });
@@ -658,3 +680,83 @@ backToUpload.addEventListener("click", function () {
 
 });
 
+
+// ==========================================
+// TEMP WORKSPACE MANAGEMENT TABS & LOGIC
+// ==========================================
+
+const tempWorkspaceTab = document.getElementById("temp-workspace-tab");
+const tempWorkspacePanel = document.getElementById("temp-workspace-panel");
+const tempWorkspaceListElement = document.getElementById("tempWorkspaceList");
+
+function showTab(tab, panel) {
+    newAnalysisTab.classList.toggle("active", tab === newAnalysisTab);
+    existingAnalysisTab.classList.toggle("active", tab === existingAnalysisTab);
+    if (tempWorkspaceTab) tempWorkspaceTab.classList.toggle("active", tab === tempWorkspaceTab);
+    
+    newAnalysisPanel.hidden = panel !== newAnalysisPanel;
+    existingAnalysisPanel.hidden = panel !== existingAnalysisPanel;
+    if (tempWorkspacePanel) tempWorkspacePanel.hidden = panel !== tempWorkspacePanel;
+}
+
+if (tempWorkspaceTab) {
+    tempWorkspaceTab.addEventListener("click", function () {
+        showTab(tempWorkspaceTab, tempWorkspacePanel);
+        refreshTempWorkspaces();
+    });
+}
+
+let tempWorkspaces = [];
+
+async function refreshTempWorkspaces() {
+    try {
+        if (!window.pywebview?.api) return;
+        const response = await window.pywebview.api.list_temp_workspaces();
+        if (!response.success) throw new Error(response.message);
+        tempWorkspaces = response.workspaces;
+        renderTempWorkspaces();
+        if (!tempWorkspaces.length) {
+            tempWorkspaceListElement.textContent = "No recent runs found.";
+        }
+    } catch (error) {
+        tempWorkspaceListElement.textContent = error.message;
+    }
+}
+
+function renderTempWorkspaces() {
+    tempWorkspaceListElement.replaceChildren();
+    tempWorkspaces.forEach(function (workspace) {
+        const item = document.createElement("div");
+        item.className = "analysis-history-item";
+
+        const name = document.createElement("span");
+        name.className = "analysis-history-name";
+        name.textContent = workspace.name.substring(0, 12) + "... (" + (workspace.size / 1024).toFixed(1) + " KB)";
+
+        const deleteButton = document.createElement("button");
+        deleteButton.type = "button";
+        deleteButton.className = "analysis-history-delete";
+        deleteButton.setAttribute("aria-label", "Delete working copy " + workspace.name);
+        deleteButton.title = "Delete working copy";
+        deleteButton.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/></svg>';
+        
+        deleteButton.addEventListener("click", async function () {
+            const status = document.getElementById("tempWorkspaceStatus");
+            status.hidden = true;
+            deleteButton.disabled = true;
+            try {
+                const response = await window.pywebview.api.delete_temp_workspace(workspace.id);
+                if (!response.success) throw new Error(response.message || "Unable to delete working copy.");
+                await refreshTempWorkspaces();
+            } catch (error) {
+                status.textContent = error.message;
+                status.hidden = false;
+            } finally {
+                deleteButton.disabled = false;
+            }
+        });
+
+        item.append(name, deleteButton);
+        tempWorkspaceListElement.append(item);
+    });
+}

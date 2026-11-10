@@ -307,16 +307,17 @@ body {
 .analysis-tabs {
     display: flex;
     align-items: flex-end;
-    gap: 16px;
+    gap: 0;
     padding: 10px 0 0;
     align-self: stretch;
-    flex: 1;
+    flex: 0 1 780px;
+    width: 100%;
     border: 0;
 }
 
 .analysis-tab {
     position: relative;
-    flex: 0 1 180px;
+    flex: 1 1 0;
     min-width: 0;
     padding: 11px 18px;
     margin-bottom: 0;
@@ -328,6 +329,7 @@ body {
     font-size: 14px;
     font-weight: 400;
     line-height: 20px;
+    text-align: center;
     cursor: pointer;
     transition: background-color 0.2s ease;
 }
@@ -713,6 +715,21 @@ body:has(#existing-analysis-panel:not([hidden])) > .header { flex-shrink: 0; }
 
 .document-content {
     line-height: 1.05;
+}
+
+.document-content .rsid-run::before {
+    content: attr(data-rsid-number);
+    display: inline-block;
+    margin: 0 3px 0 1px;
+    padding: 0 4px;
+    border: 1px solid #555;
+    border-radius: 4px;
+    background: #fff;
+    color: #1d1d1f;
+    font-size: 0.7em;
+    font-weight: 700;
+    line-height: 1.3;
+    vertical-align: super;
 }
 
 .document-content h2,

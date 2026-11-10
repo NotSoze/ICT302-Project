@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <title>Metadata-app</title>
+    <title>CopyQ</title>
 
     <link rel="stylesheet" href="style.css">
 
@@ -21,7 +21,7 @@
     <div class="header">
 
         <span class="header-title">
-            Metadata-app
+            CopyQ
         </span>
 
         <span
@@ -64,6 +64,13 @@
 
                 Existing Analysis
 
+            </button>
+
+            <button
+                type="button"
+                class="analysis-tab"
+                id="temp-workspace-tab">
+                Run History
             </button>
 
         </div>
@@ -296,6 +303,24 @@
 
                 <div id="analysisHistory" class="analysis-history" aria-live="polite"></div>
                 <p id="analysisHistoryStatus" class="upload-message" role="status" hidden></p>
+
+            </div>
+
+        </section>
+
+        <section
+            id="temp-workspace-panel"
+            class="tab-panel"
+            hidden>
+
+            <div class="upload-card">
+
+                <p class="subtitle">
+                    Review recent analysis runs. Deleting a run frees up its temporary files without affecting your saved analysis history.
+                </p>
+
+                <div id="tempWorkspaceList" class="analysis-history" aria-live="polite"></div>
+                <p id="tempWorkspaceStatus" class="upload-message" role="status" hidden></p>
 
             </div>
 

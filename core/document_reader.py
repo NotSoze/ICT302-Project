@@ -65,33 +65,44 @@ def read_docx(filename, encoded_file, storage_dir=None):
         return {'success': False, 'message': 'Invalid upload filename.'}
     try:
         data = base64.b64decode(encoded_file, validate=True)
+        """
         storage = (Path(storage_dir) if storage_dir is not None else
                    Path(os.environ.get('LOCALAPPDATA', Path.home())) / 'MetadataApp' / 'storage')
+        """
+        storage = Path(__file__).resolve().parent.parent / 'storage'
         log_path = storage / 'verification_logs' / f'{uuid4().hex}.jsonl'
         log = VerificationLog(log_path)
         # Stage the browser's upload bytes. The handler owns the verified copy;
         # neither this adapter nor the frontend opens the user's original for writing.
-        with TemporaryDirectory(prefix='metadata-docx-') as directory:
-            uploaded = Path(directory) / filename
-            uploaded.write_bytes(data)
-            accepted, message, check = handle_upload(uploaded, Path(directory) / 'working', log)
-            if not accepted:
-                return {'success': False, 'message': message,
-                        'warnings': check['warnings'], 'verification_log': str(log_path)}
-            working_copy = Path(check['working_path'])
-            log.write(Event.ANALYSIS_STARTED, file_name=filename)
-            buffers = DocxUnzipper(working_copy).extract_xml_buffers()
-            result = analyze_buffers(buffers)
-            unchanged = verify_working_copy(working_copy, check['sha256'])
-            log.write(Event.REVERIFY_MATCH if unchanged else Event.REVERIFY_MISMATCH,
-                      file_name=filename, sha256=check['sha256'])
-            if not unchanged:
-                return {'success': False, 'message': 'Working copy changed during analysis.',
-                        'verification_log': str(log_path)}
-            log.write(Event.ANALYSIS_DONE, file_name=filename)
-            result.update(warnings=check['warnings'], sha256=check['sha256'],
-                          integrity_verified=True, verification_log=str(log_path))
-            return result
+        # Stage the browser's upload bytes in the local project workspace.
+        project_temp_workspace = Path(__file__).resolve().parent.parent / 'storage' / 'temp_workspace'
+        project_temp_workspace.mkdir(parents=True, exist_ok=True)
+        
+        run_workspace = project_temp_workspace / uuid4().hex
+        run_workspace.mkdir(parents=True, exist_ok=True)
+        
+        uploaded = run_workspace / filename
+        uploaded.write_bytes(data)
+        accepted, message, check = handle_upload(uploaded, run_workspace / 'working', log)
+        
+        if not accepted:
+            return {'success': False, 'message': message,
+                    'warnings': check['warnings'], 'verification_log': str(log_path)}
+        
+        working_copy = Path(check['working_path'])
+        log.write(Event.ANALYSIS_STARTED, file_name=filename)
+        buffers = DocxUnzipper(working_copy).extract_xml_buffers()
+        result = analyze_buffers(buffers)
+        unchanged = verify_working_copy(working_copy, check['sha256'])
+        log.write(Event.REVERIFY_MATCH if unchanged else Event.REVERIFY_MISMATCH,
+                  file_name=filename, sha256=check['sha256'])
+        if not unchanged:
+            return {'success': False, 'message': 'Working copy changed during analysis.',
+                    'verification_log': str(log_path)}
+        log.write(Event.ANALYSIS_DONE, file_name=filename)
+        result.update(warnings=check['warnings'], sha256=check['sha256'],
+                      integrity_verified=True, verification_log=str(log_path))
+        return result
     except (BadZipFile, ET.ParseError, binascii.Error, ValueError, TypeError):
         return {'success': False, 'message': 'Unable to read this DOCX: invalid ZIP, XML, or file data.'}
     except LogIntegrityError:
@@ -106,6 +117,7 @@ def analyze_buffers(buffers):
     paragraphs = parser.parse_document_structure()
     metadata = parser.extract_core_metadata()
     calculator = MetricsCalculator(paragraphs, metadata)
+    timeline_sessions = parser.generate_timeline_player_sequence(paragraphs)
     # Match XMLParser.parse_document_structure's traversal exactly, including
     # empty paragraphs and paragraphs inside tables. Do not depend on helper
     # methods outside the supplied parser's public interface. Deleted content
@@ -120,4 +132,5 @@ def analyze_buffers(buffers):
         'rsid_root': parser.extract_rsid_root(),
         'metrics': calculator.compute_macro_metrics(),
         'top_sessions': calculator.generate_top_n_rankings(),
+        'session_sequence': [session['rsid'] for session in timeline_sessions],
     }
