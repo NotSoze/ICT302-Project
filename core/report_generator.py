@@ -119,7 +119,9 @@ def generate_html_report(
       padding: 0.6rem;
       padding-left: 0;
       padding-top: 0.8rem;
+      margin-left: 0;
       text-align: left;
+      font-size: 0.85rem;
     }}
     th {{
       background: #e2e8f0;
@@ -141,6 +143,10 @@ def generate_html_report(
 
   <h2>Document summary</h2>
   <table cellpadding="0" cellspacing="0">
+    <colgroup>
+      <col style="width: 20%;">
+      <col style="width: 80%;">
+    </colgroup>
     {summary_rows}
   </table>
 
