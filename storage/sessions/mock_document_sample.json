@@ -1,0 +1,14 @@
+{
+  "session_version": 2,
+  "document_id": "mock_document_sample",
+  "created_at": "2026-10-30T11:03:09.458472Z",
+  "updated_at": "2026-10-30T11:03:09.458677Z",
+  "analysis_status": "partial",
+  "analysis": {
+    "word_count": 500,
+    "rsid_count": 3,
+    "verified": true,
+    "content_sha256": "90e15501422cd18abac7d1e81a3c47a0755273fb48664a7d0f5ee7a5c9d9aa7a",
+    "metadata": {}
+  }
+}

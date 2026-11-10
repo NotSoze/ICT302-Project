@@ -3,11 +3,28 @@
 @brief Creates a local HTML summary of a completed CopyQ analysis.
 """
 
+from datetime import datetime
 from html import escape
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Any
 
+from xhtml2pdf import pisa
+
+def _format_timestamp(raw_date: Any) -> str:
+    """
+    @brief Convert an ISO timestamp string into a human-readable format.
+    """
+    if not isinstance(raw_date, str) or not raw_date.strip():
+        return "Not available"
+    try:
+        # Parse ISO format (handling trailing 'Z' for UTC)
+        cleaned = raw_date.strip().replace("Z", "+00:00")
+        dt = datetime.fromisoformat(cleaned)
+        return dt.strftime("%B %d, %Y at %H:%M UTC")
+    except ValueError:
+        # Fallback to raw string if parsing fails
+        return raw_date
 
 def generate_html_report(
     analysis_result: dict[str, Any],
@@ -40,8 +57,10 @@ def generate_html_report(
         ("Original SHA-256", integrity.get("original_sha256")),
         ("Working copy verified", integrity.get("working_copy_verified")),
         ("RSID root", document.get("rsid_root")),
-        ("Creation date", document_metadata.get("creation_date")),
-        ("Modified date", document_metadata.get("modified_date")),
+        ("Author", document_metadata.get("creator")),
+        ("Last modified by", document_metadata.get("last_modified_by")),
+        ("Creation date", _format_timestamp(document_metadata.get("creation_date"))),
+        ("Modified date", _format_timestamp(document_metadata.get("modified_date"))),
         ("Revision count", metrics.get("revision_count")),
         ("Total word count", metrics.get("total_word_count")),
         ("Unique RSID count", metrics.get("unique_rsid_count")),
@@ -92,7 +111,6 @@ def generate_html_report(
       color: #1f2933;
     }}
     table {{
-      border-collapse: collapse;
       width: 100%;
       margin-bottom: 2rem;
     }}
@@ -141,17 +159,20 @@ def generate_html_report(
 </html>
 """
 
-    # Write to a temporary file first so an interrupted save does not leave
-    # a partially written report at the requested destination.
+    
+
+
     with NamedTemporaryFile(
-        mode="w",
-        encoding="utf-8",
+        mode="w+b", # 👈 Note: Changed from text mode ("w") to binary write mode ("w+b")
         suffix=".tmp",
         dir=output_path.parent,
         delete=False,
     ) as temporary_file:
-        temporary_file.write(html)
+        pisa_status = pisa.CreatePDF(html, dest=temporary_file) # 👈 Converts HTML to PDF binary stream
         temporary_path = Path(temporary_file.name)
+
+    if pisa_status.err:
+        raise ValueError("Failed to generate PDF report from HTML template.")
 
     temporary_path.replace(output_path)
     return output_path

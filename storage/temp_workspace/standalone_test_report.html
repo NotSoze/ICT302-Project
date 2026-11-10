@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>CopyQ Analysis Report</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      line-height: 1.5;
+      margin: 2rem;
+      color: #1f2933;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-bottom: 2rem;
+    }
+    th, td {
+      border: 1px solid #cbd5e1;
+      padding: 0.6rem;
+      text-align: left;
+    }
+    th {
+      background: #e2e8f0;
+    }
+    .notice {
+      background: #eff6ff;
+      border-left: 4px solid #2563eb;
+      padding: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>CopyQ Analysis Report</h1>
+
+  <p class="notice">
+    This report describes document metadata and editing-session indicators.
+    It does not determine whether academic misconduct occurred.
+  </p>
+
+  <h2>Document summary</h2>
+  <table>
+    <tr><th>Document ID</th><td>sample_test_document</td></tr>
+<tr><th>Original SHA-256</th><td>e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855</td></tr>
+<tr><th>Working copy verified</th><td>True</td></tr>
+<tr><th>RSID root</th><td>ABC12345</td></tr>
+<tr><th>Creation date</th><td>2026-10-31T10:00:00Z</td></tr>
+<tr><th>Modified date</th><td>2026-10-31T11:30:00Z</td></tr>
+<tr><th>Revision count</th><td>5</td></tr>
+<tr><th>Total word count</th><td>1250</td></tr>
+<tr><th>Unique RSID count</th><td>2</td></tr>
+<tr><th>Word-to-revision ratio</th><td>250.0</td></tr>
+<tr><th>Unique-RSID-to-revision ratio</th><td>0.4</td></tr>
+  </table>
+
+  <h2>Top editing sessions</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>RSID</th>
+        <th>Word count</th>
+        <th>Session type</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>ABC12345</td><td>950</td><td>Primary</td></tr>
+<tr><td>DEF67890</td><td>300</td><td>Secondary/Other</td></tr>
+    </tbody>
+  </table>
+</body>
+</html>

@@ -134,7 +134,8 @@ class XMLParser:
 
     def generate_timeline_player_sequence(self, parsed_paragraphs: list[dict]) -> list[dict]:
         """
-        Constructs the session sequence using the order of RSIDs in settings.xml.
+        Constructs the timeline player sequence using the chronological order
+        of RSIDs defined in settings.xml from top to bottom.
         """
         if self.settings_root is None:
             return []

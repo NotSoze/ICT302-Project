@@ -259,7 +259,7 @@ function enableParagraphSelection() {
         if (!rsidColours.has(rsid)) {
             // Generate additional colours instead of cycling a fixed palette.
             const hue = (rsidColours.size * 137.508 + 30) % 360;
-            rsidColours.set(rsid, {
+=            rsidColours.set(rsid, {
                 colour: "hsl(" + hue + ", 70%, 82%)",
                 number: rsidColours.size + 1
             });
