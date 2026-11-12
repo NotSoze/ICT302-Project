@@ -1,8 +1,8 @@
-"""Connect desktop analysis results to local sessions and HTML reports."""
+"""Connect desktop analysis results to local sessions and PDF reports."""
 from pathlib import Path
 from uuid import UUID, uuid4
 
-from core.report_generator import generate_html_report
+from core.report_generator import generate_pdf_report
 from core.session_manager import (
     SessionError, create_session, default_session_directory, load_session, save_session,
 )
@@ -61,7 +61,7 @@ class AnalysisStore:
     def export(self, session_id, destination):
         _, result = self.open(session_id)
         # The report generator expects the pipeline schema rather than the UI schema.
-        return generate_html_report({
+        return generate_pdf_report({
             'ok': True,
             'document': {'document_id': session_id, 'metadata': result['metadata'],
                          'rsid_root': result['rsid_root']},
@@ -69,6 +69,9 @@ class AnalysisStore:
             'integrity': {'original_sha256': result['sha256'],
                           'working_copy_verified': result['integrity_verified']},
             'top_sessions': result['top_sessions'],
+            'paragraphs': result.get('paragraphs', []),
+            'session_sequence': result.get('session_sequence', []),
+            'analysis_notices': result.get('analysis_notices', []),
         }, destination)
 
     def delete(self, session_id):

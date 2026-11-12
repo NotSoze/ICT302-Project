@@ -76,28 +76,104 @@ const detailTabs = [document.getElementById("metadataTab"), document.getElementB
 let documentReadVersion = 0;
 let currentAnalysis = null;
 
+// Explanations are visible below the values (and via hover), for users who
+// have never encountered OOXML/RSIDs before. These are descriptive, not verdicts.
+const STATISTIC_HELP = {
+    "Root RSID": "Identifier marking the document's revision-save family; it is not a person or timestamp.",
+    "Total words": "Number of extracted words in the document body.",
+    "Recorded revision count": "Revision count reported in the Word file's properties, when available; not a count of individual keystrokes or edit runs.",
+    "Unique text-run RSIDs": "Number of different usable revision-save identifiers associated with text runs. Zero-filled placeholders are excluded.",
+    "Words / recorded revision": "Extracted word count divided by the recorded revision count. Not calculated if revision count is absent or zero.",
+    "Text-run RSIDs / recorded revision": "Distinct usable text-run RSIDs divided by the recorded revision count. A descriptive ratio, not a misconduct score.",
+    "Paragraph RSID": "Identifier associated with the paragraph's addition to the document. It does not reveal an author or exact time.",
+    "Default RSID": "Default identifier for text runs in this paragraph when the runs do not carry their own identifier.",
+    "RSID group": "Root means a match with the root identifier; Other means another usable identifier. Neither establishes authorship.",
+    "Text run RSIDs": "Identifiers associated with text runs in this paragraph. Multiple runs can occur inside a single word.",
+    "Word count": "Estimated count of whitespace-separated words in the selected paragraph.",
+    "Sentence count (estimated)": "Rough count based on punctuation; abbreviations and unusual formatting can affect it.",
+    "Average sentence length": "Paragraph word count divided by the estimated number of sentences.",
+    "Characters (including spaces)": "Number of characters in the extracted paragraph, including spaces.",
+    "Created": "Recorded creation timestamp supplied by the document, if present; it may be altered by conversion or editing software.",
+    "Last modified": "Recorded modification timestamp supplied by the document, if present; it is not a history of all edits.",
+    "Creator": "Author name recorded in document properties. It may be blank, edited, or inherited from a template.",
+    "Last modified by": "Last editor name recorded in document properties; not proof of authorship.",
+    "Application": "Software reported in extended document properties, if present.",
+    "Application version": "Version recorded by the document-producing application, if present.",
+    "Recorded editing time": "Total editing time stored in extended document properties, measured in minutes; it may be missing or unreliable.",
+    "Recorded page count": "Page count recorded in extended properties; it may be stale or absent.",
+    "Shared document": "Whether the document properties indicate sharing; absence means unknown, not false.",
+    "Text runs": "Count of nonempty OOXML text runs. A single word may occupy several runs.",
+    "Largest RSID group": "Most words attributed to a single usable RSID, based on the original document's current text; not proof of bulk pasting.",
+    "Largest group share": "Largest RSID group's attributed words as a percentage of all extracted words.",
+    "Average characters / RSID": "Mean number of characters associated with each usable RSID in the current document, not a historical typing rate.",
+    "Average characters / run": "Mean length of a nonempty XML text run, including whitespace.",
+    "Attributed words": "Words assigned to usable RSIDs using a deterministic approximation for split words. Unlabelled text is excluded.",
+};
+function displayValue(item) { return item == null ? "Not available" : String(item); }
+function displayRsid(item) {
+    if (!item) return "Not recorded";
+    if (String(item).toUpperCase() === "00000000") return "Unavailable (00000000 placeholder)";
+    return String(item);
+}
+function appendObservation(container, text) {
+    const line = document.createElement("p");
+    line.className = "analysis-observation";
+    line.textContent = text;
+    container.append(line);
+}
+
 function renderDocumentAnalysis(result) {
     renderDocumentHistory(result);
     const metrics = result.metrics;
-    const value = item => item == null ? "Not available" : String(item);
-    document.getElementById("timelineSha256").textContent = "SHA-256: " + value(result.sha256);
+    const properties = result.metadata || {};
+    document.getElementById("timelineSha256").textContent = "SHA-256: " + displayValue(result.sha256);
     renderParagraphFacts(document.getElementById("documentSummary"), [
-        ["Root RSID", value(result.rsid_root)],
-        ["Total words", value(metrics.total_word_count)],
-        ["Recorded revision count", value(metrics.revision_count)],
-        ["Unique paragraph RSIDs", value(metrics.unique_rsid_count)],
-        ["Words / recorded revision", value(metrics.word_to_revision_ratio)],
-        ["Paragraph RSIDs / recorded revision", value(metrics.unique_rsid_to_revision_ratio)]
+        ["Creator", displayValue(properties.creator)],
+        ["Last modified by", displayValue(properties.last_modified_by)],
+        ["Created", displayValue(properties.creation_date)],
+        ["Last modified", displayValue(properties.modified_date)],
+        ["Application", displayValue(properties.application)],
+        ["Application version", displayValue(properties.app_version)],
+        ["Recorded editing time", properties.editing_time_minutes == null ? "Not available" : properties.editing_time_minutes + " min"],
+        ["Recorded page count", displayValue(properties.page_count)],
+        ["Shared document", properties.shared_document == null ? "Not available" : properties.shared_document ? "Yes" : "No"],
+        ["Root RSID", displayRsid(result.rsid_root)],
+        ["Total words", displayValue(metrics.total_word_count)],
+        ["Recorded revision count", displayValue(metrics.revision_count)],
+        ["Unique text-run RSIDs", displayValue(metrics.unique_rsid_count)],
+        ["Text runs", displayValue(metrics.text_run_count)],
+        ["Attributed words", displayValue(metrics.attributed_word_count)],
+        ["Words / recorded revision", displayValue(metrics.word_to_revision_ratio)],
+        ["Text-run RSIDs / recorded revision", displayValue(metrics.unique_rsid_to_revision_ratio)],
+        ["Largest RSID group", displayValue(metrics.largest_rsid_word_count)],
+        ["Largest group share", metrics.largest_rsid_share_percent == null ? "Not available" : metrics.largest_rsid_share_percent + "%"],
+        ["Average characters / RSID", displayValue(metrics.average_characters_per_rsid)],
+        ["Average characters / run", displayValue(metrics.average_characters_per_run)],
     ]);
     document.getElementById("documentChecks").textContent =
         "Working copy integrity: " + (result.integrity_verified ? "Verified" : "Not verified") +
         ". Validation warnings: " + ((result.warnings || []).join("; ") || "None");
+    const observations = document.getElementById("documentIndicators");
+    observations.replaceChildren();
+    if (!metrics.unique_rsid_count) {
+        appendObservation(observations, "RSID-based analysis unavailable: no usable identifiers were found. Other available text and metadata remain inspectable.");
+    } else if (metrics.largest_rsid_share_percent != null) {
+        appendObservation(observations,
+            "The largest RSID group accounts for " + metrics.largest_rsid_share_percent +
+            "% of the document's extracted words. This is a descriptive observation, not evidence of pasting or misconduct.");
+    }
+    if (metrics.revision_count == null) {
+        appendObservation(observations, "Recorded revision count is unavailable; revision-based ratios are not calculated.");
+    }
+    if (metrics.descriptive_indicators) metrics.descriptive_indicators.forEach(item => appendObservation(observations, "Review indicator: " + item.description));
+    if (result.analysis_notices) result.analysis_notices.forEach(note => appendObservation(observations, note));
+    if (!observations.childElementCount) appendObservation(observations, "No additional data-availability warnings detected. RSIDs alone do not establish authorship or editing time.");
     const rankings = document.getElementById("sessionRankings");
     if (result.top_sessions.length) {
         renderParagraphFacts(rankings, result.top_sessions.map(group => [
-            group.rsid + " (" + group.session_type + ")", group.word_count + " words"
+            "RSID " + group.rsid + " (" + group.session_type + ")", group.word_count + " attributed words"
         ]));
-    } else rankings.textContent = "No paragraph RSIDs recorded in this document.";
+    } else rankings.textContent = "No usable RSID groups found in this document.";
 }
 
 function setHistoryMessage(message) {
@@ -157,7 +233,42 @@ function renderDocumentHistory(result) {
     } else {
         events.textContent = "No document dates were returned by the backend.";
     }
-    const groups = Object.entries(result.metrics.session_word_aggregates);
+    const steps = (result.paragraphs || []).filter(p => p.text && p.text.trim());
+    if (steps.length) {
+        const player = document.createElement("section");
+        player.className = "document-order-player";
+        const heading = document.createElement("h4");
+        heading.textContent = "Document-order paragraph player";
+        const caution = document.createElement("p");
+        caution.className = "paragraph-hint";
+        caution.textContent = "Steps follow paragraph positions in the current document, NOT the chronological order of writing.";
+        const counter = document.createElement("p");
+        counter.className = "player-counter";
+        const preview = document.createElement("p");
+        preview.className = "player-excerpt";
+        const prev = document.createElement("button");
+        prev.type = "button"; prev.textContent = "Previous";
+        const next = document.createElement("button");
+        next.type = "button"; next.textContent = "Next";
+        const controls = document.createElement("div");
+        controls.className = "player-controls";
+        controls.append(prev, next);
+        let step = 0;
+        function showStep() {
+            const current = steps[step];
+            counter.textContent = "Paragraph " + (step + 1) + " / " + steps.length +
+                " · " + current.word_count + " words · " + (current.session_type || "Unavailable") + " RSID";
+            preview.textContent = current.text;
+            prev.disabled = step === 0;
+            next.disabled = step === steps.length - 1;
+        }
+        prev.addEventListener("click", () => { if (step > 0) { step--; showStep(); } });
+        next.addEventListener("click", () => { if (step < steps.length - 1) { step++; showStep(); } });
+        player.append(heading, caution, counter, preview, controls);
+        sessions.append(player);
+        showStep();
+    }
+    const groups = Object.entries(result.metrics.session_word_aggregates || {});
     const sequenceOrder = new Map(
         (result.session_sequence || []).map((rsid, index) => [rsid.toUpperCase(), index])
     );
@@ -173,9 +284,9 @@ function renderDocumentHistory(result) {
         const groupType = result.metrics.session_types[rsid];
         appendHistoryCard(sessions, "RSID " + rsid,
             words + " associated words" + (groupType ? " · " + groupType : "") +
-            ". Edit timestamp unavailable.");
+            ". First appearance in document order only; editing timestamp unavailable.");
     }
-    if (!groups.length) sessions.textContent = "No paragraph RSID groups were returned by the backend.";
+    if (!groups.length) sessions.textContent = "No usable RSIDs were found. A document-order RSID view is unavailable.";
 }
 
 function showDetailTab(index) {
@@ -211,7 +322,17 @@ function renderParagraphFacts(panel, facts) {
         const description = document.createElement("dd");
         term.textContent = label;
         description.textContent = value;
+        const help = STATISTIC_HELP[label] || (label.startsWith("RSID ")
+            ? "A text group sharing this identifier. The number of associated words is approximate and does not reveal the editor or editing time."
+            : null);
         row.append(term, description);
+        if (help) {
+            term.title = help;
+            const explanation = document.createElement("p");
+            explanation.className = "fact-explanation";
+            explanation.textContent = help;
+            row.append(explanation);
+        }
         list.append(row);
     });
     panel.replaceChildren(list);
@@ -229,8 +350,8 @@ function selectParagraph(paragraph) {
     const details = currentAnalysis?.paragraphs[Number(paragraph.dataset.analysisIndex)];
     paragraphSelection.textContent = "Paragraph " + paragraph.dataset.paragraphNumber;
     renderParagraphFacts(metadataPanel, [
-        ["Paragraph RSID", details?.paragraph_rsidR || "Not recorded"],
-        ["Default RSID", details?.paragraph_rsidDefault || "Not recorded"],
+        ["Paragraph RSID", displayRsid(details?.paragraph_rsidR)],
+        ["Default RSID", displayRsid(details?.paragraph_rsidDefault)],
         ["RSID group", details?.session_type || "Unknown"],
         ["Text run RSIDs", [...new Set((details?.runs || []).map(run => run.rsidR).filter(Boolean))].join(", ") || "Not recorded"]
     ]);
@@ -242,9 +363,7 @@ function selectParagraph(paragraph) {
     ]);
     const insight = document.createElement("p");
     insight.className = "paragraph-hint";
-    insight.textContent = average > 25
-        ? "This paragraph uses long sentences on average. Consider splitting longer sentences to improve readability."
-        : "This paragraph uses " + (average > 15 ? "moderate-length" : "short") + " sentences on average.";
+    insight.textContent = "These are descriptive text measurements. They do not establish authorship, editing history or misconduct.";
     writingPanel.append(insight);
 }
 
@@ -252,8 +371,8 @@ function enableParagraphSelection() {
     const rsidColours = new Map();
     documentContent.querySelectorAll(".rsid-run").forEach(function (run) {
         const rsid = run.dataset.rsid.trim().toUpperCase();
-        if (!rsid) {
-            run.title = "Text RSID not recorded";
+        if (!/^[0-9A-F]{8}$/.test(rsid) || rsid === "00000000") {
+            run.title = "Usable text RSID unavailable";
             return;
         }
         if (!rsidColours.has(rsid)) {
@@ -267,7 +386,7 @@ function enableParagraphSelection() {
         const indicator = rsidColours.get(rsid);
         run.style.backgroundColor = indicator.colour;
         run.dataset.rsidNumber = String(indicator.number);
-        run.title = "RSID " + indicator.number + ": " + rsid;
+        run.title = "RSID group " + indicator.number + ": " + rsid + " (not author or time)";
     });
     const paragraphs = Array.from(documentContent.querySelectorAll("p"))
         .filter(function (paragraph) { return paragraph.textContent.trim(); });
@@ -508,7 +627,9 @@ function selectFile(file) {
     selectedFile = file;
     fileStatus.textContent = "\u2713 File selected successfully";
     fileStatus.classList.remove("is-error");
-    startAnalysis.hidden = false;
+    startAnalysis.hidden = true;
+    // Selecting a supported file initiates analysis as agreed with the client.
+    openAnalysis(file);
 }
 
 // ==========================================
@@ -593,7 +714,7 @@ async function readDocument(file, sessionId) {
     showDetailTab(0);
     paragraphSelection.textContent = "Select a highlighted paragraph to view its details.";
     metadataPanel.textContent = "Paragraph metadata will appear here.";
-    writingPanel.textContent = "Select a highlighted paragraph to view its writing analysis.";
+    writingPanel.textContent = "Select a highlighted paragraph to view text statistics.";
     documentContent.textContent = "Reading document...";
     try {
         if (!window.pywebview?.api) throw new Error("Open the desktop app with main.py to analyse documents.");

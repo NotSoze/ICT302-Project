@@ -28,10 +28,15 @@ def handle_upload(source_path: str | Path, workspace_dir: str | Path = "storage/
 
     if not check["valid"]:
         return False, "; ".join(check["errors"]), check
-        
+
+    # Client approved .docx-only input. Even a DOCX mistakenly named .doc
+    # must be renamed by its owner, rather than silently accepted.
+    if src.suffix.lower() != '.docx':
+        return False, "Only .docx files are supported. Please select a .docx file.", check
+
     # 2. Strict Gatekeeper for Legacy .doc (No automatic conversion)
     if check["needs_conversion"]:
-        msg = "Legacy .doc files are not supported. Please open the file in Word and save it as .docx, then upload again."
+        msg = "This file is a legacy binary Word file or an encrypted Word document. CopyQ accepts only unprotected .docx files. Open it in Word, remove password protection if authorised, and save a .docx copy."
         return False, msg, check
 
     # 3. Establish Isolated Working Copy Path
@@ -42,10 +47,6 @@ def handle_upload(source_path: str | Path, workspace_dir: str | Path = "storage/
 
     try:
         # 4. Create Verified Working Copy & Hash
-        if log is not None:
-            log.write(Event.CONVERSION_STARTED, file_name=src.name, details={"note": "Bypassing conversion; direct .docx ingestion."})
-            log.write(Event.CONVERSION_DONE, file_name=src.name)
-
         # Execute forensic copy and initial verification via integrity module
         integrity_result = create_verified_copy(src, dest)
         orig_hash = integrity_result["original_hash"]
@@ -66,7 +67,7 @@ def handle_upload(source_path: str | Path, workspace_dir: str | Path = "storage/
 
     except Exception as e:
         if log is not None:
-            log.write(Event.CONVERSION_FAILED, file_name=src.name, details={"error": str(e)})
+            log.write(Event.HASH_MISMATCH, file_name=src.name, details={"error": str(e)})
         return False, f"Failed to establish secure working copy: {str(e)}", check
 
     # Attach workflow paths to check dictionary for downstream modules

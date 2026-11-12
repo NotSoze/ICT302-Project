@@ -6,11 +6,9 @@ HTML, and returns analysis and integrity results to frontend/script.js.
 """
 import base64
 import binascii
-import os
 from uuid import uuid4
 from html import escape
 from pathlib import Path
-from tempfile import TemporaryDirectory
 import xml.etree.ElementTree as ET
 from zipfile import BadZipFile
 
@@ -19,6 +17,7 @@ from core.xml_parser import XMLParser
 from core.metrics_calculator import MetricsCalculator
 from core.doc_handler import handle_upload, verify_working_copy
 from core.verification_log import Event, VerificationLog, LogIntegrityError
+from core.paths import storage_root
 
 W = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
 
@@ -65,17 +64,13 @@ def read_docx(filename, encoded_file, storage_dir=None):
         return {'success': False, 'message': 'Invalid upload filename.'}
     try:
         data = base64.b64decode(encoded_file, validate=True)
-        """
-        storage = (Path(storage_dir) if storage_dir is not None else
-                   Path(os.environ.get('LOCALAPPDATA', Path.home())) / 'MetadataApp' / 'storage')
-        """
-        storage = Path(__file__).resolve().parent.parent / 'storage'
+        storage = Path(storage_dir) if storage_dir is not None else storage_root()
         log_path = storage / 'verification_logs' / f'{uuid4().hex}.jsonl'
         log = VerificationLog(log_path)
         # Stage the browser's upload bytes. The handler owns the verified copy;
         # neither this adapter nor the frontend opens the user's original for writing.
         # Stage the browser's upload bytes in the local project workspace.
-        project_temp_workspace = Path(__file__).resolve().parent.parent / 'storage' / 'temp_workspace'
+        project_temp_workspace = storage / 'temp_workspace'
         project_temp_workspace.mkdir(parents=True, exist_ok=True)
         
         run_workspace = project_temp_workspace / uuid4().hex
@@ -124,13 +119,22 @@ def analyze_buffers(buffers):
     # is hidden by the preview, but retains its position in the analysis list.
     paragraph_elements = buffers['document_xml'].iterfind(f'.//{W}p')
     indices = {id(p): index for index, p in enumerate(paragraph_elements)}
+    metrics = calculator.compute_macro_metrics()
+    notices = []
+    if metrics['unique_rsid_count'] == 0:
+        notices.append('RSID information is absent or contains only unusable placeholders; RSID group analysis is unavailable.')
+    if metadata.get('revision_count') is None:
+        notices.append('Document revision count is unavailable; revision-based ratios are not calculated.')
+    if buffers.get('core_xml') is None:
+        notices.append('Standard core document properties are missing from this file.')
     return {
         'success': True,
         'html': render(buffers['document_xml'], indices),
         'paragraphs': paragraphs,
         'metadata': metadata,
         'rsid_root': parser.extract_rsid_root(),
-        'metrics': calculator.compute_macro_metrics(),
+        'metrics': metrics,
+        'analysis_notices': notices,
         'top_sessions': calculator.generate_top_n_rankings(),
         'session_sequence': [session['rsid'] for session in timeline_sessions],
     }

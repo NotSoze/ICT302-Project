@@ -30,10 +30,12 @@ class DocxUnzipper:
                 with zf.open('word/settings.xml') as f:
                     buffers['settings_xml'] = ET.parse(f).getroot()
                     
-            # Extract core.xml (contains metadata/editing time)
-            if 'package/metadata' in namelist or 'docProps/core.xml' in namelist:
-                core_path = 'docProps/core.xml' if 'docProps/core.xml' in namelist else 'package/metadata' # fallback check
-                with zf.open(core_path) as f:
+            # Extract optional document properties (not always present).
+            if 'docProps/core.xml' in namelist:
+                with zf.open('docProps/core.xml') as f:
                     buffers['core_xml'] = ET.parse(f).getroot()
+            if 'docProps/app.xml' in namelist:
+                with zf.open('docProps/app.xml') as f:
+                    buffers['app_xml'] = ET.parse(f).getroot()
                     
         return buffers

@@ -8,11 +8,11 @@ import webview
 from core.document_reader import read_docx
 from core.analysis_store import AnalysisStore
 from core.session_manager import SessionError
+from core.paths import storage_root, ui_index
 
 class Api:
     def __init__(self):
-        project_storage = Path(__file__).resolve().parent / "storage" / "sessions"
-        self.store = AnalysisStore(directory=project_storage)
+        self.store = AnalysisStore(directory=storage_root() / "sessions")
 
     def read_docx(self, filename, encoded_file):
         result = read_docx(filename, encoded_file)
@@ -44,10 +44,14 @@ class Api:
                 file_types=('PDF report (*.pdf)',))
             if not destination:
                 return {'success': True, 'cancelled': True}
-            path = destination if isinstance(destination, str) else destination[0]
+            path = Path(destination if isinstance(destination, str) else destination[0])
+            if not path.suffix:
+                path = path.with_suffix('.pdf')
             saved = self.store.export(session_id, path)
             return {'success': True, 'path': str(saved)}
-        except (SessionError, OSError, ValueError, KeyError, TypeError) as error:
+        except Exception as error:
+            # Report rendering failures should be displayed in the frontend,
+            # not crash the desktop bridge during a demo.
             return {'success': False, 'message': f'Unable to export report: {error}'}
 
     def delete_analysis(self, session_id):
@@ -61,7 +65,7 @@ class Api:
 
     def list_temp_workspaces(self):
         try:
-            temp_dir = Path(__file__).resolve().parent / "storage" / "temp_workspace"
+            temp_dir = storage_root() / "temp_workspace"
             if not temp_dir.exists():
                 return {'success': True, 'workspaces': []}
             
@@ -81,7 +85,7 @@ class Api:
 
     def delete_temp_workspace(self, workspace_id):
         try:
-            temp_dir = Path(__file__).resolve().parent / "storage" / "temp_workspace"
+            temp_dir = storage_root() / "temp_workspace"
             target = temp_dir / workspace_id
             if target.resolve().parent != temp_dir.resolve() or not target.is_dir():
                 return {'success': False, 'message': 'Invalid workspace identifier.'}
@@ -96,8 +100,8 @@ if __name__ == "__main__":
     api = Api()
 
     webview.create_window(
-        title="Document Metadata Extractor",
-        url=str(Path(__file__).resolve().parent / "ui" / "index.html"),
+        title="CopyQ — Document Forensics",
+        url=str(ui_index()),
         js_api=api,
         maximized=True,
         width=1200,

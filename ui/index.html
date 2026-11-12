@@ -266,14 +266,14 @@
 
                         <div class="paragraph-tabs" role="tablist" aria-label="Paragraph details">
                             <button type="button" id="metadataTab" role="tab" aria-selected="true" aria-controls="paragraphMetadata">Metadata</button>
-                            <button type="button" id="writingTab" role="tab" aria-selected="false" aria-controls="writingStyle" tabindex="-1">Writing Analysis</button>
+                            <button type="button" id="writingTab" role="tab" aria-selected="false" aria-controls="writingStyle" tabindex="-1">Text Statistics</button>
                         </div>
                         <p class="paragraph-selection" id="paragraphSelection" aria-live="polite">Select a highlighted paragraph to view its details.</p>
                         <div id="paragraphMetadata" role="tabpanel" aria-labelledby="metadataTab" tabindex="0">
                             <p class="paragraph-hint">Paragraph metadata will appear here.</p>
                         </div>
                         <div id="writingStyle" class="analysis-result" role="tabpanel" aria-labelledby="writingTab" tabindex="0" hidden>
-                            Select a highlighted paragraph to view its writing analysis.
+                            Select a highlighted paragraph to view its text statistics.
                         </div>
 
                     </section>
@@ -345,15 +345,17 @@
         </div>
 
         <div class="timeline-modal-body">
-            <p class="timeline-description" id="timelineDescription">Document dates and paragraph RSID groups from the selected file. RSIDs do not establish authorship or a chronological editing history.</p>
+            <p class="timeline-description" id="timelineDescription">Available document dates and RSID-associated text groups. Paragraph playback follows document order, not the actual writing chronology. RSIDs do not prove authorship or misconduct.</p>
 
             <section aria-labelledby="documentSummaryTitle">
                 <h2 id="documentSummaryTitle">Document summary</h2>
                 <div id="documentSummary" aria-live="polite"></div>
                 <p class="paragraph-hint" id="documentChecks"></p>
-                <h3>Top paragraph RSID groups</h3>
+                <h3>Descriptive document observations</h3>
+                <div id="documentIndicators" aria-live="polite"></div>
+                <h3>Largest RSID-associated text groups</h3>
                 <div id="sessionRankings"></div>
-                <p class="paragraph-hint">Groups use paragraph RSIDs. Primary means a match with the root RSID; these labels do not identify authors or establish an editing timeline.</p>
+                <p class="paragraph-hint">Groups use text-run RSIDs. Root indicates a match with the recorded root identifier. These labels do not identify authors, prove pasted content, or establish chronology.</p>
             </section>
 
             <section aria-labelledby="documentTimelineTitle">
@@ -361,8 +363,8 @@
                     <h3 id="documentTimelineTitle">Document Timeline</h3>
                 </div>
                 <div class="paragraph-tabs timeline-view-tabs" role="tablist" aria-label="Document history view">
-                    <button type="button" id="eventsTab" role="tab" aria-selected="true" aria-controls="timelineEvents">Timeline</button>
-                    <button type="button" id="sessionsTab" role="tab" aria-selected="false" aria-controls="editingSessions" tabindex="-1">Editing sessions</button>
+                    <button type="button" id="eventsTab" role="tab" aria-selected="true" aria-controls="timelineEvents">Recorded dates</button>
+                    <button type="button" id="sessionsTab" role="tab" aria-selected="false" aria-controls="editingSessions" tabindex="-1">RSID / player</button>
                 </div>
                 <div id="timelineEvents" role="tabpanel" aria-labelledby="eventsTab" tabindex="0">
                     <p class="paragraph-hint">Analyse a document to view available dates.</p>

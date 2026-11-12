@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+*.egg-info/
+build/
+dist/
+.vscode/
+*.spec
+storage/sessions/*
+!storage/sessions/.gitkeep
+storage/temp_workspace/*
+!storage/temp_workspace/.gitkeep
+storage/verification_logs/*
+!storage/verification_logs/.gitkeep

@@ -1,188 +1,181 @@
-import xml.etree.ElementTree as ET
+"""Read WordprocessingML text, RSIDs, and document properties.
+
+RSIDs label editing contexts, *not* authors or timestamps. Missing/zero RSIDs
+are not counted as sessions. Word attribution across fragmented XML runs is an
+explicit, deterministic approximation (majority of characters in each token).
+"""
+import re
+
+
+RSID_PATTERN = re.compile(r"^[0-9a-fA-F]{8}$")
+W = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
+
+
+def usable_rsid(value):
+    """Return a normalized RSID, or None if absent/placeholder/invalid."""
+    if not isinstance(value, str) or not RSID_PATTERN.fullmatch(value):
+        return None
+    value = value.upper()
+    return value if value != '00000000' else None
+
 
 class XMLParser:
-    """
-    Parses OOXML elements to extract rsidRoot, paragraphs, text runs, and session mappings.
-    """
-    # Namespaces commonly used in OOXML
     NS = {
         'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main',
         'cp': 'http://schemas.openxmlformats.org/package/2006/metadata/core-properties',
         'dc': 'http://purl.org/dc/elements/1.1/',
-        'dcterms': 'http://purl.org/dc/terms/'
+        'dcterms': 'http://purl.org/dc/terms/',
     }
 
     def __init__(self, xml_buffers: dict):
         self.document_root = xml_buffers.get('document_xml')
         self.settings_root = xml_buffers.get('settings_xml')
         self.core_root = xml_buffers.get('core_xml')
+        self.app_root = xml_buffers.get('app_xml')
 
     def extract_rsid_root(self) -> str | None:
-        """
-        Extracts the authoritative Primary session identifier (w:rsidRoot) from settings.xml.
-        """
         if self.settings_root is None:
             return None
-        
-        # Look for <w:rsidRoot w:val="XXXXXXXX"/>
         rsid_root_elem = self.settings_root.find('.//w:rsidRoot', self.NS)
-        if rsid_root_elem is not None:
-            return rsid_root_elem.attrib.get('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}val')
-        return None
+        return usable_rsid(rsid_root_elem.get(W + 'val')) if rsid_root_elem is not None else None
+
+    @staticmethod
+    def _run_text(run):
+        pieces = []
+        for element in run.iter():
+            if element.tag == W + 't':
+                pieces.append(element.text or '')
+            elif element.tag == W + 'tab':
+                pieces.append('\t')
+            elif element.tag in (W + 'br', W + 'cr'):
+                pieces.append('\n')
+        return ''.join(pieces)
+
+    @staticmethod
+    def _allocate_words(full_text, spans, runs):
+        """Count each *whole paragraph token* once, attributing it to one run.
+
+        Tokens may span multiple OOXML runs. Choose the run that contributed
+        most non-whitespace characters (first run wins ties); do not count the
+        same token twice. This is a descriptive allocation, not edit chronology.
+        """
+        for match in re.finditer(r'\S+', full_text):
+            start, end = match.span()
+            candidates = []
+            for index, (left, right) in enumerate(spans):
+                overlap = max(0, min(end, right) - max(start, left))
+                if overlap:
+                    candidates.append((overlap, -index, index))
+            if candidates:
+                winner = max(candidates)[2]
+                runs[winner]['word_count'] += 1
 
     def parse_document_structure(self) -> list[dict]:
-        """
-        Scans document.xml to extract paragraphs, text runs, word counts, and rsidR values.
-        """
         if self.document_root is None:
             return []
-
-        parsed_paragraphs = []
-        rsid_root = self.extract_rsid_root()
-
-        # Iterate through paragraphs <w:p>
-        for p in self.document_root.iterfind('.//w:p', self.NS):
-            p_rsid_r = p.attrib.get('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}rsidR')
-            p_rsid_default = p.attrib.get('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}rsidRDefault')
-            
-            p_text = ""
-            runs_data = []
-
-            # Iterate through text runs <w:r> inside the paragraph
-            for r in p.iterfind('.//w:r', self.NS):
-                r_rsid_r = r.attrib.get('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}rsidR')
-                
-                t_elem = r.find('.//w:t', self.NS)
-                run_text = t_elem.text if (t_elem is not None and t_elem.text) else ""
-                
-                if t_elem is not None and t_elem.text:
-                    p_text += t_elem.text
-
-                # 1. Apply the fallback cascade so untagged runs inherit paragraph RSIDs
-                effective_run_rsid = r_rsid_r or p_rsid_r or p_rsid_default
-                
-                # 2. Compute run-level word count
-                run_word_count = len(run_text.split()) if run_text else 0
-                
-                # 3. Classify run-level session type against rsid_root
-                run_session_type = (
-                    "Primary"
-                    if (effective_run_rsid and rsid_root and effective_run_rsid.lower() == rsid_root.lower())
-                    else "Secondary/Other"
-                )
-                    
-                runs_data.append({
-                    'rsidR': effective_run_rsid,
+        paragraphs = []
+        root_rsid = self.extract_rsid_root()
+        for paragraph in self.document_root.iterfind('.//w:p', self.NS):
+            p_rsid = paragraph.get(W + 'rsidR')
+            p_default = paragraph.get(W + 'rsidRDefault')
+            active = usable_rsid(p_rsid) or usable_rsid(p_default)
+            session_type = self._session_type(active, root_rsid)
+            runs = []
+            spans = []
+            text_parts = []
+            position = 0
+            for run in paragraph.iterfind('.//w:r', self.NS):
+                run_text = self._run_text(run)
+                # w:rsidRDefault is defined as the default for runs lacking
+                # their own rsidR; the paragraph addition RSID is not fallback.
+                raw_rsid = run.get(W + 'rsidR') or p_default
+                effective = usable_rsid(raw_rsid)
+                runs.append({
+                    'rsidR': effective,
+                    'raw_rsidR': raw_rsid,
                     'text': run_text,
-                    'word_count': run_word_count,
-                    'session_type': run_session_type
+                    'word_count': 0,
+                    'character_count': len(run_text),
+                    'session_type': self._session_type(effective, root_rsid),
                 })
-
-            word_count = len(p_text.split())
-
-            # Classify session type based strictly on rsidRoot comparison
-            active_rsid = p_rsid_r or p_rsid_default
-            session_type = "Primary" if (active_rsid and rsid_root and active_rsid.lower() == rsid_root.lower()) else "Secondary/Other"
-
-            parsed_paragraphs.append({
-                'paragraph_rsidR': p_rsid_r,
-                'paragraph_rsidDefault': p_rsid_default,
+                text_parts.append(run_text)
+                spans.append((position, position + len(run_text)))
+                position += len(run_text)
+            full_text = ''.join(text_parts)
+            self._allocate_words(full_text, spans, runs)
+            paragraphs.append({
+                'paragraph_rsidR': p_rsid,
+                'paragraph_rsidDefault': p_default,
                 'session_type': session_type,
-                'word_count': word_count,
-                'text': p_text,
-                'runs': runs_data
+                'word_count': len(re.findall(r'\S+', full_text)),
+                'text': full_text,
+                'runs': runs,
             })
+        return paragraphs
 
-        return parsed_paragraphs
+    @staticmethod
+    def _session_type(rsid, root):
+        if not rsid:
+            return 'Unavailable'
+        if not root:
+            return 'Unclassified'
+        if rsid == root:
+            return 'Root'
+        return 'Other'
 
     def extract_core_metadata(self) -> dict:
-        """
-        Extracts document-level metadata from core.xml, including creation date, 
-        modification date, and the official document revision count (<cp:revision>).
-        """
         metadata = {
-            'creation_date': None,
-            'modified_date': None,
-            'creator': None,
-            'last_modified_by': None,
-            'revision_count': 1  # Default fallback if revision element is missing
+            'creation_date': None, 'modified_date': None,
+            'creator': None, 'last_modified_by': None,
+            'revision_count': None, 'application': None, 'app_version': None,
+            'editing_time_minutes': None, 'page_count': None,
+            'shared_document': None,
         }
-        
-        if self.core_root is None:
-            return metadata
-
-        # Iterate through all elements and match local tag names, bypassing namespace prefix quirks
-        for elem in self.core_root.iter():
-            # ElementTree formats tags with namespaces as '{uri}local_tag'
-            local_tag = elem.tag.split('}')[-1].lower()
-            
-            if local_tag == 'created' and elem.text:
-                metadata['creation_date'] = elem.text.strip()
-            elif local_tag == 'modified' and elem.text:
-                metadata['modified_date'] = elem.text.strip()
-            elif local_tag == 'creator' and elem.text:
-                metadata['creator'] = elem.text.strip()
-            elif local_tag == 'lastmodifiedby' and elem.text:
-                metadata['last_modified_by'] = elem.text.strip()
-            elif local_tag == 'revision' and elem.text:
-                try:
-                    metadata['revision_count'] = int(elem.text.strip())
-                except ValueError:
-                    metadata['revision_count'] = 1
-
+        core_map = {'created': 'creation_date', 'modified': 'modified_date',
+                    'creator': 'creator', 'lastmodifiedby': 'last_modified_by',
+                    'revision': 'revision_count'}
+        app_map = {'application': 'application', 'appversion': 'app_version',
+                   'totaltime': 'editing_time_minutes', 'pages': 'page_count',
+                   'shareddoc': 'shared_document'}
+        for root, mapping in ((self.core_root, core_map), (self.app_root, app_map)):
+            if root is None:
+                continue
+            for item in root.iter():
+                key = mapping.get(item.tag.split('}')[-1].lower())
+                if not key or not item.text or not item.text.strip():
+                    continue
+                value = item.text.strip()
+                if key in ('revision_count', 'editing_time_minutes', 'page_count'):
+                    try:
+                        value = int(value)
+                        if value < 0:
+                            continue
+                    except ValueError:
+                        continue
+                elif key == 'shared_document':
+                    if value.lower() not in ('true', 'false', '1', '0'):
+                        continue
+                    value = value.lower() in ('true', '1')
+                metadata[key] = value
         return metadata
 
     def generate_timeline_player_sequence(self, parsed_paragraphs: list[dict]) -> list[dict]:
+        """RSID groups in order of FIRST APPEARANCE IN DOCUMENT, not time.
+
+        Neither the order of settings.xml's rsid table nor the hex identifier
+        provides a trustworthy editing chronology. Only meaningful IDs enter.
         """
-        Constructs the timeline player sequence using the chronological order
-        of RSIDs defined in settings.xml from top to bottom.
-        """
-        if self.settings_root is None:
-            return []
-
-        # 1. Get all unique RSIDs in their exact chronological order from settings.xml
-        settings_rsids = []
-        for elem in self.settings_root.iter():
-            local_tag = elem.tag.split('}')[-1]
-            if local_tag == 'rsid':
-                val = elem.attrib.get('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}val')
-                if val and val not in settings_rsids:
-                    settings_rsids.append(val)
-
-        rsid_root = self.extract_rsid_root()
-        timeline_sessions = []
-
-        # 2. Iterate through each RSID value in settings.xml order (top to bottom)
-        for target_rsid in settings_rsids:
-            session_total_words = 0
-            session_texts = []
-            
-            # Determine session type based on whether this RSID is the root RSID
-            is_root = (rsid_root and target_rsid.lower() == rsid_root.lower())
-            session_type = "Primary" if is_root else "Secondary/Other"
-
-            # 3. Iterate through all paragraph objects of the document
-            for para in parsed_paragraphs:
-                # Go into the paragraph objects to find the text run level objects
-                for run in para.get('runs', []):
-                    run_rsid = run.get('rsidR')
-                    
-                    # Match with the target RSID from settings.xml
-                    if run_rsid and run_rsid.lower() == target_rsid.lower():
-                        # Accumulate word counts
-                        session_total_words += run.get('word_count', 0)
-                        
-                        # Take its string (combine if multiple found)
-                        if run.get('text'):
-                            session_texts.append(run['text'])
-
-            # 4. Only keep sessions that actually appear in the document text
-            if session_texts:
-                timeline_sessions.append({
-                    'rsid': target_rsid,
-                    'total_word_count': session_total_words,
-                    'combined_text': "".join(session_texts),
-                    'session_type': session_type
-                })
-
-        return timeline_sessions
+        grouped = {}
+        root = self.extract_rsid_root()
+        for paragraph in parsed_paragraphs:
+            for run in paragraph.get('runs', []):
+                rsid = usable_rsid(run.get('rsidR'))
+                if not rsid:
+                    continue
+                if rsid not in grouped:
+                    grouped[rsid] = {'rsid': rsid, 'total_word_count': 0,
+                                     'combined_text': '',
+                                     'session_type': self._session_type(rsid, root)}
+                grouped[rsid]['total_word_count'] += run.get('word_count', 0)
+                grouped[rsid]['combined_text'] += run.get('text', '')
+        return list(grouped.values())
